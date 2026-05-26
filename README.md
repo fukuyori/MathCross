@@ -2,6 +2,8 @@
 
 MathCross is an iPad puzzle game built with SwiftUI. Players fill number and operator cards into crossing five-cell equations, with levels unlocked through clear counts.
 
+![MathCross screenshot](images/screenshot.png)
+
 ## Features
 
 - 5-cell math blocks in horizontal and vertical layouts
