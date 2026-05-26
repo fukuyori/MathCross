@@ -1,0 +1,27 @@
+# macOS
+.DS_Store
+
+# Xcode
+build/
+DerivedData/
+*.xcuserstate
+*.xccheckout
+*.moved-aside
+*.xcscmblueprint
+xcuserdata/
+
+# Swift Package Manager / SwiftPM caches
+.build/
+.swiftpm/
+.swift-module-cache/
+
+# Generated app artifacts
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Local puzzle-generation intermediates
+PreparedPuzzles.jsonl
+*.tmp
+
+tools/
