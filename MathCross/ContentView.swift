@@ -3,6 +3,7 @@ import SwiftUI
 import UIKit
 
 struct ContentView: View {
+    @State private var level: Int
     @State private var blockCount: Int
     @State private var difficulty: PuzzleDifficulty
     @State private var puzzle: PlayablePuzzle
@@ -10,19 +11,14 @@ struct ContentView: View {
     @State private var placedOperatorCards: [GridPoint: PlacedOperatorCard] = [:]
     @State private var selectedCardIndex: Int?
     @State private var selectedOperatorCardIndex: Int?
+    @State private var hintPoints: Int
+    @State private var hintedNumberPoints: Set<GridPoint> = []
     @State private var showConfetti = false
     @State private var celebrationID = 0
     @State private var hasCelebratedCurrentPuzzle = false
     @State private var solvedCounts: [String: Int]
-    @State private var puzzleCache: [PuzzleCacheKey: PlayablePuzzle] = [:]
-    @State private var usedPreparedPuzzleIDs: [PuzzleCacheKey: Set<Int>] = [:]
-    @State private var preparingPuzzleKeys: Set<PuzzleCacheKey> = []
-    @State private var puzzlePreparationTasks: [PuzzleCacheKey: Task<PlayablePuzzle, Never>] = [:]
-    @State private var puzzlePreparationStartDates: [PuzzleCacheKey: Date] = [:]
-    @State private var puzzlePreparationTimes: [PuzzleCacheKey: TimeInterval] = [:]
-    @State private var cachePreparingDifficulties: Set<PuzzleDifficulty> = []
-    @State private var activeGenerationID = UUID()
-    @State private var isReplacingPuzzle = false
+    @State private var completedPuzzleIDs: [Int: Set<Int>]
+    @State private var currentPreparedPuzzleID: Int?
     @State private var unlockMessage: String?
     @State private var celebrationUnlockMessage: String?
     @State private var celebrationEncouragementMessage: String?
@@ -30,8 +26,14 @@ struct ContentView: View {
     @State private var nextUnlockedPuzzleKey: PuzzleCacheKey?
     @State private var showNextPuzzleButton = false
     @State private var showResetAchievementsDialog = false
+    @State private var resetAchievementLevelText = ""
+    @State private var showHintGrantDialog = false
+    @State private var showHintConfirmDialog = false
+    @State private var showReplacePuzzleConfirmDialog = false
+    @State private var hintGrantText = ""
+    @State private var pendingHintTapWorkItem: DispatchWorkItem?
 
-    private let appVersion = "0.3.0"
+    private let appVersion = "0.5.0"
     private let cellSpacing: CGFloat = 2
     private let ink = Color(red: 0.12, green: 0.15, blue: 0.18)
     private let accent = Color(red: 0.04, green: 0.45, blue: 0.39)
@@ -49,6 +51,9 @@ struct ContentView: View {
     private let panelRadius: CGFloat = 10
     private static let solvedCountsKey = "mathCross.solvedCountsByBlockCount"
     private static let currentLevelKey = "mathCross.currentLevel"
+    private static let completedPuzzleIDsKey = "mathCross.completedPuzzleIDsByLevel"
+    private static let hintPointsKey = "mathCross.hintPoints"
+    private static let lastLevelNumber = 136
     private static let encouragementMessages = [
         "お疲れ様でございます",
         "大変お疲れ様でした",
@@ -118,17 +123,21 @@ struct ContentView: View {
 
     init() {
         let storedSolvedCounts = Self.loadSolvedCounts()
+        var storedCompletedPuzzleIDs = Self.loadCompletedPuzzleIDs()
         let storedPuzzleKey = Self.loadCurrentPuzzleKey(solvedCounts: storedSolvedCounts)
+        let initialPuzzle = Self.initialPlayablePuzzle(
+            for: storedPuzzleKey,
+            completedPuzzleIDs: &storedCompletedPuzzleIDs
+        )
 
+        _level = State(initialValue: storedPuzzleKey.level)
         _blockCount = State(initialValue: storedPuzzleKey.blockCount)
         _difficulty = State(initialValue: storedPuzzleKey.difficulty)
-        _puzzle = State(
-            initialValue: BoardPuzzle.generatePlayable(
-                blockCount: storedPuzzleKey.blockCount,
-                difficulty: storedPuzzleKey.difficulty
-            )
-        )
+        _puzzle = State(initialValue: initialPuzzle.puzzle)
         _solvedCounts = State(initialValue: storedSolvedCounts)
+        _completedPuzzleIDs = State(initialValue: storedCompletedPuzzleIDs)
+        _currentPreparedPuzzleID = State(initialValue: initialPuzzle.puzzleID)
+        _hintPoints = State(initialValue: Self.loadHintPoints())
     }
 
     private var boardSize: Int {
@@ -136,34 +145,27 @@ struct ContentView: View {
     }
 
     private var currentSolvedCount: Int {
-        solvedCounts[solvedCountKey(blockCount: blockCount, difficulty: difficulty), default: 0]
+        clearCount(for: currentPuzzleKey)
     }
 
     private var currentLevelNumber: Int {
-        levelNumber(blockCount: blockCount, difficulty: difficulty)
+        level
     }
 
     private var currentPuzzleKey: PuzzleCacheKey {
-        PuzzleCacheKey(blockCount: blockCount, difficulty: difficulty)
+        puzzleKey(forLevel: level) ?? PuzzleCacheKey(level: level, blockCount: blockCount, difficulty: difficulty)
     }
 
     private var nextLevelKey: PuzzleCacheKey? {
-        guard currentLevelNumber < maximumLevelNumber else {
-            return nil
-        }
-
         return puzzleKey(forLevel: currentLevelNumber + 1)
     }
 
     private var maximumLevelNumber: Int {
-        BoardPuzzle.blockCountRange.count * PuzzleDifficulty.allCases.count
+        Self.lastLevelNumber
     }
 
     private var levelProgress: Double {
-        let difficultyCount = PuzzleDifficulty.allCases.count
-        let currentIndex = (blockCount - BoardPuzzle.blockCountRange.lowerBound) * difficultyCount + difficulty.sortOrder
-        let maximumIndex = (BoardPuzzle.blockCountRange.upperBound - BoardPuzzle.blockCountRange.lowerBound + 1) * difficultyCount - 1
-        return Double(currentIndex) / Double(max(maximumIndex, 1))
+        min(Double(level - 1) / Double(max(Self.lastLevelNumber - 1, 1)), 1)
     }
 
     private var backgroundTheme: BackgroundTheme {
@@ -326,25 +328,58 @@ struct ContentView: View {
                     .transition(.scale(scale: 0.96).combined(with: .opacity))
             }
 
-            if isReplacingPuzzle {
-                loadingOverlay
-                    .transition(.opacity)
-            }
         }
-        .task {
-            preparePuzzleCache()
-        }
-        .confirmationDialog(
-            "実績を全クリアしますか",
+        .alert(
+            "実績を調整しますか",
             isPresented: $showResetAchievementsDialog,
-            titleVisibility: .visible
         ) {
-            Button("はい", role: .destructive) {
-                resetAchievements()
+            TextField("残すレベル", text: $resetAchievementLevelText)
+                .keyboardType(.numberPad)
+
+            Button("実行", role: .destructive) {
+                resetAchievements(through: Int(resetAchievementLevelText) ?? 0)
             }
             Button("キャンセル", role: .cancel) {}
         } message: {
-            Text("正解数とアンロック状況をすべて消し、2ブロックの初級から始めます。")
+            Text("0または1なら全実績を消去します。60ならレベル60までをクリア済みにして、レベル60から始めます。")
+        }
+        .alert(
+            "ヒントを付与",
+            isPresented: $showHintGrantDialog
+        ) {
+            TextField("追加するヒント数", text: $hintGrantText)
+                .keyboardType(.numberPad)
+
+            Button("付与") {
+                grantHintPoints()
+            }
+            Button("キャンセル", role: .cancel) {}
+        } message: {
+            Text("入力した数だけヒントポイントを追加します。")
+        }
+        .alert(
+            "ヒントを使いますか",
+            isPresented: $showHintConfirmDialog
+        ) {
+            Button("使う") {
+                revealRandomHint()
+            }
+            Button("キャンセル", role: .cancel) {}
+        } message: {
+            Text("ヒントポイントを1つ消費して、未入力の数字を1つ表示します。")
+        }
+        .alert(
+            "別のパターンに入れ替えますか",
+            isPresented: $showReplacePuzzleConfirmDialog
+        ) {
+            Button("入れ替える", role: .destructive) {
+                withAnimation(.snappy) {
+                    replacePuzzle(for: currentPuzzleKey)
+                }
+            }
+            Button("キャンセル", role: .cancel) {}
+        } message: {
+            Text("現在の入力内容は消えます。")
         }
     }
 
@@ -442,15 +477,15 @@ struct ContentView: View {
             .foregroundStyle(ink)
             .contentShape(Rectangle())
             .onTapGesture(count: 2) {
-            showResetAchievementsDialog = true
-        }
+                resetAchievementLevelText = "\(currentLevelNumber)"
+                showResetAchievementsDialog = true
+            }
             Text("レベル \(currentLevelNumber) / \(boardSize)x\(boardSize) / \(blockCount)個 / \(difficulty.title)")
                 .font(.system(size: 15, weight: .semibold, design: .rounded))
                 .foregroundStyle(accent)
             Text("正解数 \(currentSolvedCount)")
                 .font(.system(size: 14, weight: .bold, design: .rounded).monospacedDigit())
                 .foregroundStyle(ink.opacity(0.68))
-            preparationStatusView
             Text(unlockMessage ?? " ")
                 .font(.system(size: 13, weight: .bold, design: .rounded))
                 .foregroundStyle(unlockMessage == nil ? Color.clear : errorAccent)
@@ -460,75 +495,24 @@ struct ContentView: View {
         }
     }
 
-    private var preparationStatusView: some View {
-        HStack(spacing: 6) {
-            preparationBadge(title: "同", key: currentPuzzleKey)
-
-            if let nextLevelKey, isCacheEligible(nextLevelKey) {
-                preparationBadge(title: "次", key: nextLevelKey)
-            }
-        }
-        .frame(height: 18, alignment: .leading)
-    }
-
-    private func preparationBadge(title: String, key: PuzzleCacheKey) -> some View {
-        let isPreparing = preparingPuzzleKeys.contains(key)
-        let isPrepared = puzzleCache[key] != nil
-        let bundledCount = PreparedPuzzleCatalog.shared.count(for: key)
-        let seconds = puzzlePreparationTimes[key]
-        let text: String
-
-        if bundledCount > 0 {
-            text = "\(title) 内蔵 \(bundledCount)面"
-        } else if isPreparing {
-            text = "\(title) 準備中"
-        } else if isPrepared, let seconds {
-            text = "\(title) 準備済み \(Self.formatPreparationTime(seconds))"
-        } else if isPrepared {
-            text = "\(title) 準備済み"
-        } else {
-            text = "\(title) 未準備"
-        }
-
-        return Text(text)
-            .font(.system(size: 11, weight: .bold, design: .rounded).monospacedDigit())
-            .foregroundStyle((isPrepared || bundledCount > 0) ? accent.opacity(0.72) : ink.opacity(0.38))
-            .padding(.horizontal, 5)
-            .padding(.vertical, 2)
-            .background(Color.white.opacity(isPrepared ? 0.44 : 0.26))
-            .clipShape(RoundedRectangle(cornerRadius: 5))
-    }
-
     private var headerControls: some View {
         HStack(spacing: 14) {
-            HStack(spacing: 8) {
-                blockCountButton(systemName: "minus") {
-                    setLevel(currentLevelNumber - 1)
-                }
-                .disabled(currentLevelNumber == 1)
-
-                VStack(spacing: 1) {
-                    Text("LEVEL")
-                        .font(.system(size: 11, weight: .heavy, design: .rounded))
-                        .foregroundStyle(ink.opacity(0.54))
-                    Text("\(currentLevelNumber)")
-                        .font(.system(size: 27, weight: .heavy, design: .rounded).monospacedDigit())
-                        .foregroundStyle(ink)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.72)
-                    Text("\(blockCount)個 \(difficulty.title)")
-                        .font(.system(size: 11, weight: .bold, design: .rounded))
-                        .foregroundStyle(accent)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.72)
-                }
-                .frame(width: 96, height: 60)
-
-                blockCountButton(systemName: "plus") {
-                    setLevel(currentLevelNumber + 1)
-                }
-                .disabled(currentLevelNumber == maximumLevelNumber)
+            VStack(spacing: 1) {
+                Text("LEVEL")
+                    .font(.system(size: 11, weight: .heavy, design: .rounded))
+                    .foregroundStyle(ink.opacity(0.54))
+                Text("\(currentLevelNumber)")
+                    .font(.system(size: 27, weight: .heavy, design: .rounded).monospacedDigit())
+                    .foregroundStyle(ink)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+                Text("\(blockCount)個 \(difficulty.title)")
+                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                    .foregroundStyle(accent)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
             }
+            .frame(width: 112, height: 60)
             .padding(.horizontal, 8)
             .padding(.vertical, 6)
             .background(Color.white.opacity(0.94))
@@ -538,12 +522,35 @@ struct ContentView: View {
                     .stroke(Color.white.opacity(0.55), lineWidth: 1)
             )
             .fixedSize(horizontal: true, vertical: false)
-            .disabled(isReplacingPuzzle)
+
+            HStack(spacing: 6) {
+                Image(systemName: "lightbulb.fill")
+                    .font(.system(size: 18, weight: .heavy))
+                Text("\(hintPoints)")
+                    .font(.system(size: 20, weight: .heavy, design: .rounded).monospacedDigit())
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+            }
+            .frame(width: 62, height: 50)
+            .background(Color.white.opacity(0.94))
+            .foregroundStyle(accent)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(Color.white.opacity(0.55), lineWidth: 1)
+            )
+            .shadow(color: ink.opacity(0.12), radius: 6, y: 3)
+            .opacity(hintPoints <= 0 ? 0.62 : 1)
+            .contentShape(Rectangle())
+            .onTapGesture(count: 2) {
+                handleHintDoubleTap()
+            }
+            .onTapGesture {
+                handleHintSingleTap()
+            }
 
             Button {
-                withAnimation(.snappy) {
-                    replacePuzzle(blockCount: blockCount, difficulty: difficulty)
-                }
+                showReplacePuzzleConfirmDialog = true
             } label: {
                 Label("再配置", systemImage: "arrow.clockwise")
                     .labelStyle(.iconOnly)
@@ -553,37 +560,6 @@ struct ContentView: View {
             .tint(Color(red: 0.95, green: 0.72, blue: 0.24))
             .foregroundStyle(ink)
             .frame(width: 50, height: 50)
-            .disabled(isReplacingPuzzle)
-        }
-    }
-
-    private var loadingOverlay: some View {
-        ZStack {
-            Color.black.opacity(0.16)
-                .ignoresSafeArea()
-
-            VStack(spacing: 14) {
-                ProgressView()
-                    .controlSize(.large)
-                    .tint(accent)
-
-                Text("作成中")
-                    .font(.system(size: 24, weight: .heavy, design: .rounded))
-                    .foregroundStyle(ink)
-
-                Text("\(difficulty.title) / \(blockCount)個のブロックを準備しています")
-                    .font(.system(size: 15, weight: .bold, design: .rounded))
-                    .foregroundStyle(ink.opacity(0.68))
-            }
-            .padding(.horizontal, 30)
-            .padding(.vertical, 24)
-            .background(panelBackground)
-            .clipShape(RoundedRectangle(cornerRadius: panelRadius))
-            .overlay(
-                RoundedRectangle(cornerRadius: panelRadius)
-                    .stroke(Color.white.opacity(0.72), lineWidth: 1)
-            )
-            .shadow(color: ink.opacity(0.22), radius: 28, y: 16)
         }
     }
 
@@ -837,6 +813,7 @@ struct ContentView: View {
         let placedNumberValue = placedCards[point]?.value
         let placedOperatorValue = placedOperatorCards[point]?.operation
         let content = placedNumberValue.map(String.init) ?? placedOperatorValue?.rawValue ?? puzzle.visibleContents[point]
+        let hintedContent = hintedNumberPoints.contains(point) ? puzzle.solution.cellContents[point] : nil
         let hasPlacedValue = placedNumberValue != nil || placedOperatorValue != nil
         let hasEquationError = isIncorrectPlacedInput(at: point)
 
@@ -851,6 +828,12 @@ struct ContentView: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.38)
                     .foregroundStyle(hasPlacedValue ? accent : ink)
+            } else if let hintedContent {
+                Text(hintedContent)
+                    .font(.system(size: max(17, min(32, cellSide * 0.62)), weight: .heavy, design: .rounded))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.38)
+                    .foregroundStyle(ink.opacity(0.26))
             }
         }
         .overlay(
@@ -1071,35 +1054,12 @@ struct ContentView: View {
     }
 
     private func isUnlocked(blockCount: Int, difficulty: PuzzleDifficulty) -> Bool {
-        guard BoardPuzzle.blockCountRange.contains(blockCount) else {
-            return false
-        }
-
-        guard clearCount(blockCount: blockCount, difficulty: difficulty) == 0 else {
-            return true
-        }
-
-        switch difficulty {
-        case .beginner:
-            guard blockCount > BoardPuzzle.blockCountRange.lowerBound else {
-                return true
-            }
-
-            return clearCount(blockCount: blockCount - 1, difficulty: .expert) >= clearRequirement(after: .expert)
-
-        case .intermediate:
-            return clearCount(blockCount: blockCount, difficulty: .beginner) >= clearRequirement(after: .beginner)
-
-        case .advanced:
-            return clearCount(blockCount: blockCount, difficulty: .intermediate) >= clearRequirement(after: .intermediate)
-
-        case .expert:
-            return clearCount(blockCount: blockCount, difficulty: .advanced) >= clearRequirement(after: .advanced)
-        }
+        guard let key = puzzleKey(forLevel: levelNumber(blockCount: blockCount, difficulty: difficulty)) else { return false }
+        return isUnlocked(key)
     }
 
     private func levelNumber(for key: PuzzleCacheKey) -> Int {
-        levelNumber(blockCount: key.blockCount, difficulty: key.difficulty)
+        key.level
     }
 
     private func levelNumber(blockCount: Int, difficulty: PuzzleDifficulty) -> Int {
@@ -1108,66 +1068,38 @@ struct ContentView: View {
     }
 
     private func puzzleKey(forLevel level: Int) -> PuzzleCacheKey? {
-        guard (1...maximumLevelNumber).contains(level) else {
-            return nil
-        }
-
-        let zeroBasedLevel = level - 1
-        let difficultyCount = PuzzleDifficulty.allCases.count
-        let blockCount = BoardPuzzle.blockCountRange.lowerBound + zeroBasedLevel / difficultyCount
-        let difficultyIndex = zeroBasedLevel % difficultyCount
-
-        guard let difficulty = PuzzleDifficulty.allCases.first(where: { $0.sortOrder == difficultyIndex }) else {
-            return nil
-        }
-
-        return PuzzleCacheKey(blockCount: blockCount, difficulty: difficulty)
+        Self.puzzleKey(forLevel: level)
     }
 
     private func showUnlockMessage(for blockCount: Int, difficulty: PuzzleDifficulty) {
         withAnimation(.snappy) {
-            unlockMessage = unlockRequirementText(for: blockCount, difficulty: difficulty)
+            let key = puzzleKey(forLevel: levelNumber(blockCount: blockCount, difficulty: difficulty))
+            unlockMessage = key.map(unlockRequirementText(for:)) ?? "このレベルは選択できません"
         }
     }
 
-    private func unlockRequirementText(for blockCount: Int, difficulty: PuzzleDifficulty) -> String {
-        switch difficulty {
-        case .beginner:
-            let level = levelNumber(blockCount: blockCount, difficulty: difficulty)
-            let expertRemaining = remainingClears(
-                required: clearRequirement(after: .expert),
-                current: clearCount(blockCount: blockCount - 1, difficulty: .expert)
-            )
-            return "レベル \(level) は狂級 \(blockCount - 1)個をあと\(expertRemaining)回クリアで解放"
-
-        case .intermediate:
-            let beginnerRemaining = remainingClears(
-                required: clearRequirement(after: .beginner),
-                current: clearCount(blockCount: blockCount, difficulty: .beginner)
-            )
-            let level = levelNumber(blockCount: blockCount, difficulty: difficulty)
-            return "レベル \(level) は初級 \(blockCount)個をあと\(beginnerRemaining)回クリアで解放"
-
-        case .advanced:
-            let intermediateRemaining = remainingClears(
-                required: clearRequirement(after: .intermediate),
-                current: clearCount(blockCount: blockCount, difficulty: .intermediate)
-            )
-            let level = levelNumber(blockCount: blockCount, difficulty: difficulty)
-            return "レベル \(level) は中級 \(blockCount)個をあと\(intermediateRemaining)回クリアで解放"
-
-        case .expert:
-            let advancedRemaining = remainingClears(
-                required: clearRequirement(after: .advanced),
-                current: clearCount(blockCount: blockCount, difficulty: .advanced)
-            )
-            let level = levelNumber(blockCount: blockCount, difficulty: difficulty)
-            return "レベル \(level) は上級 \(blockCount)個をあと\(advancedRemaining)回クリアで解放"
+    private func unlockRequirementText(for key: PuzzleCacheKey) -> String {
+        guard key.level > 1, let previousKey = puzzleKey(forLevel: key.level - 1) else {
+            return "レベル \(key.level) はまだ解放されていません"
         }
+
+        let remaining = remainingClears(
+            required: clearRequirement(for: previousKey),
+            current: clearCount(for: previousKey)
+        )
+        return "レベル \(key.level) はレベル \(previousKey.level) をあと\(remaining)回クリアで解放"
     }
 
-    private func clearRequirement(after difficulty: PuzzleDifficulty) -> Int {
-        switch difficulty {
+    private func clearRequirement(for key: PuzzleCacheKey) -> Int {
+        if key.level >= 101 {
+            return 3
+        }
+
+        if key.level >= 65 {
+            return 3
+        }
+
+        switch key.difficulty {
         case .beginner:
             return 1
         case .intermediate:
@@ -1182,13 +1114,9 @@ struct ContentView: View {
     }
 
     private func levelUpRemainingMessage() -> String? {
-        guard currentLevelNumber < maximumLevelNumber else {
-            return nil
-        }
-
         let remaining = remainingClears(
-            required: clearRequirement(after: difficulty),
-            current: clearCount(blockCount: blockCount, difficulty: difficulty)
+            required: clearRequirement(for: currentPuzzleKey),
+            current: clearCount(for: currentPuzzleKey)
         )
 
         guard remaining > 0 else {
@@ -1199,15 +1127,20 @@ struct ContentView: View {
     }
 
     private func clearCount(blockCount: Int, difficulty: PuzzleDifficulty) -> Int {
-        solvedCounts[solvedCountKey(blockCount: blockCount, difficulty: difficulty), default: 0]
+        guard let key = puzzleKey(forLevel: levelNumber(blockCount: blockCount, difficulty: difficulty)) else { return 0 }
+        return clearCount(for: key)
+    }
+
+    private func clearCount(for key: PuzzleCacheKey) -> Int {
+        solvedCounts[solvedCountKey(level: key.level), default: 0]
     }
 
     private func unlockedKeys() -> Set<PuzzleCacheKey> {
         var keys: Set<PuzzleCacheKey> = []
 
-        for difficulty in PuzzleDifficulty.allCases {
-            for blockCount in BoardPuzzle.blockCountRange where isUnlocked(blockCount: blockCount, difficulty: difficulty) {
-                keys.insert(PuzzleCacheKey(blockCount: blockCount, difficulty: difficulty))
+        for level in 1...maximumLevelNumber {
+            if let key = puzzleKey(forLevel: level), isUnlocked(key) {
+                keys.insert(key)
             }
         }
 
@@ -1235,17 +1168,34 @@ struct ContentView: View {
         return sortedKeys
     }
 
+    private func isUnlocked(_ key: PuzzleCacheKey) -> Bool {
+        guard key.level >= 1 else {
+            return false
+        }
+
+        guard clearCount(for: key) == 0 else {
+            return true
+        }
+
+        guard key.level > 1, let previousKey = puzzleKey(forLevel: key.level - 1) else {
+            return true
+        }
+
+        return clearCount(for: previousKey) >= clearRequirement(for: previousKey)
+    }
+
     private func goToNextPuzzle() {
         withAnimation(.snappy) {
             showNextPuzzleButton = false
             nextUnlockedPuzzleKey = nil
             clearProgressMessage = nil
-            replacePuzzle(blockCount: blockCount, difficulty: difficulty)
+            replacePuzzle(for: currentPuzzleKey)
         }
     }
 
     private func goToUnlockedPuzzle(_ key: PuzzleCacheKey) {
         withAnimation(.snappy) {
+            level = key.level
             blockCount = key.blockCount
             difficulty = key.difficulty
             Self.saveCurrentPuzzleKey(key)
@@ -1256,25 +1206,32 @@ struct ContentView: View {
             celebrationEncouragementMessage = nil
             showConfetti = false
             unlockMessage = nil
-            replacePuzzle(blockCount: key.blockCount, difficulty: key.difficulty)
-            preparePuzzleCache()
+            replacePuzzle(for: key)
         }
     }
 
-    private func resetAchievements() {
-        activeGenerationID = UUID()
+    private func resetAchievements(through requestedLevel: Int) {
+        let targetLevel = min(max(requestedLevel, 1), maximumLevelNumber)
+        var seededSolvedCounts: [String: Int] = [:]
+
+        if targetLevel > 1 {
+            for level in 1...targetLevel {
+                guard let key = puzzleKey(forLevel: level) else {
+                    continue
+                }
+
+                seededSolvedCounts[solvedCountKey(level: level)] = clearRequirement(for: key)
+            }
+        }
+
         solvedCounts = [:]
-        puzzleCache = [:]
-        usedPreparedPuzzleIDs = [:]
-        preparingPuzzleKeys = []
-        puzzlePreparationTasks = [:]
-        puzzlePreparationStartDates = [:]
-        puzzlePreparationTimes = [:]
-        cachePreparingDifficulties = []
+        completedPuzzleIDs = [:]
+        currentPreparedPuzzleID = nil
         placedCards = [:]
         placedOperatorCards = [:]
         selectedCardIndex = nil
         selectedOperatorCardIndex = nil
+        hintedNumberPoints = []
         showConfetti = false
         celebrationUnlockMessage = nil
         celebrationEncouragementMessage = nil
@@ -1283,13 +1240,18 @@ struct ContentView: View {
         showNextPuzzleButton = false
         hasCelebratedCurrentPuzzle = false
         unlockMessage = nil
+        solvedCounts = seededSolvedCounts
         Self.saveSolvedCounts(solvedCounts)
+        Self.saveCompletedPuzzleIDs(completedPuzzleIDs)
 
         withAnimation(.snappy) {
-            blockCount = BoardPuzzle.defaultBlockCount
-            difficulty = .beginner
-            Self.saveCurrentPuzzleKey(PuzzleCacheKey(blockCount: BoardPuzzle.defaultBlockCount, difficulty: .beginner))
-            replacePuzzle(blockCount: BoardPuzzle.defaultBlockCount, difficulty: .beginner)
+            let key = puzzleKey(forLevel: targetLevel) ??
+                PuzzleCacheKey(level: 1, blockCount: BoardPuzzle.defaultBlockCount, difficulty: .beginner)
+            level = key.level
+            blockCount = key.blockCount
+            difficulty = key.difficulty
+            Self.saveCurrentPuzzleKey(key)
+            replacePuzzle(for: key)
         }
     }
 
@@ -1298,89 +1260,84 @@ struct ContentView: View {
             return
         }
 
-        guard key.blockCount != blockCount || key.difficulty != difficulty else {
+        guard key.level != level else {
             return
         }
 
-        guard isUnlocked(blockCount: key.blockCount, difficulty: key.difficulty) else {
-            showUnlockMessage(for: key.blockCount, difficulty: key.difficulty)
+        guard isUnlocked(key) else {
+            withAnimation(.snappy) {
+                unlockMessage = unlockRequirementText(for: key)
+            }
             return
         }
 
         withAnimation(.snappy) {
+            level = key.level
             blockCount = key.blockCount
             difficulty = key.difficulty
             Self.saveCurrentPuzzleKey(key)
             unlockMessage = nil
-            replacePuzzle(blockCount: key.blockCount, difficulty: key.difficulty)
-            preparePuzzleCache()
+            replacePuzzle(for: key)
         }
     }
 
     private func replacePuzzle(blockCount: Int, difficulty: PuzzleDifficulty) {
-        guard isUnlocked(blockCount: blockCount, difficulty: difficulty) else {
-            showUnlockMessage(for: blockCount, difficulty: difficulty)
+        guard let key = puzzleKey(forLevel: levelNumber(blockCount: blockCount, difficulty: difficulty)) else { return }
+        replacePuzzle(for: key)
+    }
+
+    private func replacePuzzle(for key: PuzzleCacheKey) {
+        guard isUnlocked(key) else {
+            withAnimation(.snappy) {
+                unlockMessage = unlockRequirementText(for: key)
+            }
             return
         }
 
-        let key = PuzzleCacheKey(blockCount: blockCount, difficulty: difficulty)
-
-        if let preparedPuzzle = bundledPreparedPuzzle(for: key) {
-            applyPuzzle(preparedPuzzle, blockCount: blockCount, difficulty: difficulty)
-        } else if
-            let cachedPuzzle = puzzleCache.removeValue(forKey: key),
-            hasRequiredOperatorCards(cachedPuzzle, difficulty: difficulty)
-        {
-            applyPuzzle(cachedPuzzle, blockCount: blockCount, difficulty: difficulty)
-        } else {
-            let generationID = UUID()
-            activeGenerationID = generationID
-            let preparationTask = preparationTask(for: key, priority: .userInitiated)
-
-            withAnimation(.easeOut(duration: 0.18)) {
-                isReplacingPuzzle = true
-            }
-
-            Task.detached(priority: .userInitiated) {
-                let generatedPuzzle = await preparationTask.value
-
-                await MainActor.run {
-                    guard activeGenerationID == generationID else {
-                        return
-                    }
-
-                    finishPreparingPuzzle(
-                        generatedPuzzle,
-                        for: key,
-                        shouldCache: false
-                    )
-                    applyPuzzle(generatedPuzzle, blockCount: blockCount, difficulty: difficulty)
-                }
-            }
+        guard let preparedPuzzle = bundledPreparedPuzzle(for: key) else {
+            unlockMessage = "このレベルのパターンデータがありません"
+            return
         }
+
+        applyPuzzle(preparedPuzzle.puzzle, puzzleID: preparedPuzzle.id, key: key)
     }
 
-    private func bundledPreparedPuzzle(for key: PuzzleCacheKey) -> PlayablePuzzle? {
-        let usedIDs = usedPreparedPuzzleIDs[key, default: []]
-        guard let preparedPuzzle = PreparedPuzzleCatalog.shared.puzzle(for: key, excluding: usedIDs) else {
+    private func bundledPreparedPuzzle(for key: PuzzleCacheKey) -> (id: Int, puzzle: PlayablePuzzle)? {
+        let completionBucket = completedPuzzleBucket(for: key)
+        let completedIDs = completedPuzzleIDs[completionBucket, default: []]
+        if let preparedPuzzle = PreparedPuzzleCatalog.shared.puzzle(for: key, excluding: completedIDs) {
+            return preparedPuzzle
+        }
+
+        guard !completedIDs.isEmpty else {
             return nil
         }
 
-        usedPreparedPuzzleIDs[key, default: []].insert(preparedPuzzle.id)
-        return preparedPuzzle.puzzle
+        completedPuzzleIDs[completionBucket] = []
+        Self.saveCompletedPuzzleIDs(completedPuzzleIDs)
+        return PreparedPuzzleCatalog.shared.puzzle(for: key, excluding: [])
+    }
+
+    private func completedPuzzleBucket(for key: PuzzleCacheKey) -> Int {
+        Self.completedPuzzleBucket(for: key)
     }
 
     private func applyPuzzle(
         _ newPuzzle: PlayablePuzzle,
-        blockCount: Int,
-        difficulty: PuzzleDifficulty
+        puzzleID: Int?,
+        key: PuzzleCacheKey
     ) {
+        level = key.level
+        blockCount = key.blockCount
+        difficulty = key.difficulty
         puzzle = newPuzzle
-        Self.saveCurrentPuzzleKey(PuzzleCacheKey(blockCount: blockCount, difficulty: difficulty))
+        currentPreparedPuzzleID = puzzleID
+        Self.saveCurrentPuzzleKey(key)
         placedCards = [:]
         placedOperatorCards = [:]
         selectedCardIndex = nil
         selectedOperatorCardIndex = nil
+        hintedNumberPoints = []
         showConfetti = false
         celebrationUnlockMessage = nil
         celebrationEncouragementMessage = nil
@@ -1388,174 +1345,72 @@ struct ContentView: View {
         nextUnlockedPuzzleKey = nil
         showNextPuzzleButton = false
         hasCelebratedCurrentPuzzle = false
-
-        withAnimation(.easeOut(duration: 0.18)) {
-            isReplacingPuzzle = false
-        }
-
-        preparePuzzle(blockCount: blockCount, difficulty: difficulty)
     }
 
-    private func preparePuzzleCache() {
-        let targetKeys = cacheTargetKeys()
-
-        Task.detached(priority: .utility) {
-            for key in targetKeys {
-                let task = await MainActor.run {
-                    guard
-                        isCacheEligible(key),
-                        puzzleCache[key] == nil,
-                        PreparedPuzzleCatalog.shared.count(for: key) == 0
-                    else {
-                        return nil as Task<PlayablePuzzle, Never>?
-                    }
-
-                    return preparationTask(for: key, priority: TaskPriority.utility)
-                }
-
-                guard let task else {
-                    continue
-                }
-
-                let preparedPuzzle = await task.value
-
-                await MainActor.run {
-                    finishPreparingPuzzle(
-                        preparedPuzzle,
-                        for: key,
-                        shouldCache: isCacheEligible(key)
-                    )
-                }
-            }
-        }
-    }
-
-    private func cacheTargetKeys() -> [PuzzleCacheKey] {
-        var keys: [PuzzleCacheKey] = []
-
-        if let currentKey = puzzleKey(forLevel: currentLevelNumber) {
-            keys.append(currentKey)
-        }
-
-        if
-            currentLevelNumber < maximumLevelNumber,
-            let nextKey = puzzleKey(forLevel: currentLevelNumber + 1),
-            isCacheEligible(nextKey)
-        {
-            keys.append(nextKey)
-        }
-
-        return keys
-    }
-
-    private func isCacheEligible(_ key: PuzzleCacheKey) -> Bool {
-        isUnlocked(blockCount: key.blockCount, difficulty: key.difficulty) ||
-            isExpectedToUnlockAfterCurrentClear(key)
-    }
-
-    private func isExpectedToUnlockAfterCurrentClear(_ key: PuzzleCacheKey) -> Bool {
-        guard levelNumber(for: key) == currentLevelNumber + 1 else {
-            return false
-        }
-
-        switch key.difficulty {
-        case .beginner:
-            return difficulty == .expert &&
-                key.blockCount == blockCount + 1 &&
-                clearCount(blockCount: blockCount, difficulty: .expert) + 1 >= clearRequirement(after: .expert)
-
-        case .intermediate:
-            return difficulty == .beginner &&
-                key.blockCount == blockCount &&
-                clearCount(blockCount: blockCount, difficulty: .beginner) + 1 >= clearRequirement(after: .beginner)
-
-        case .advanced:
-            return difficulty == .intermediate &&
-                key.blockCount == blockCount &&
-                clearCount(blockCount: blockCount, difficulty: .intermediate) + 1 >= clearRequirement(after: .intermediate)
-
-        case .expert:
-            return difficulty == .advanced &&
-                key.blockCount == blockCount &&
-                clearCount(blockCount: blockCount, difficulty: .advanced) + 1 >= clearRequirement(after: .advanced)
-        }
-    }
-
-    private func preparePuzzle(blockCount: Int, difficulty: PuzzleDifficulty) {
-        guard isUnlocked(blockCount: blockCount, difficulty: difficulty) else {
+    private func revealRandomHint() {
+        guard hintPoints > 0 else {
             return
         }
 
-        let key = PuzzleCacheKey(blockCount: blockCount, difficulty: difficulty)
+        let candidates = puzzle.hiddenNumberPoints.filter { point in
+            placedCards[point] == nil && !hintedNumberPoints.contains(point)
+        }
 
-        guard PreparedPuzzleCatalog.shared.count(for: key) == 0 else {
+        guard let point = candidates.randomElement() else {
             return
         }
 
-        guard puzzleCache[key] == nil else {
+        selectedCardIndex = nil
+        selectedOperatorCardIndex = nil
+        hintedNumberPoints.insert(point)
+        hintPoints -= 1
+        Self.saveHintPoints(hintPoints)
+    }
+
+    private func requestRandomHint() {
+        guard hintPoints > 0, hasAvailableHintTarget else {
             return
         }
 
-        let preparationTask = preparationTask(for: key, priority: .utility)
+        showHintConfirmDialog = true
+    }
 
-        Task.detached(priority: .utility) {
-            let preparedPuzzle = await preparationTask.value
-
-            await MainActor.run {
-                finishPreparingPuzzle(preparedPuzzle, for: key, shouldCache: true)
-            }
+    private var hasAvailableHintTarget: Bool {
+        puzzle.hiddenNumberPoints.contains { point in
+            placedCards[point] == nil && !hintedNumberPoints.contains(point)
         }
     }
 
-    private func preparationTask(
-        for key: PuzzleCacheKey,
-        priority: TaskPriority
-    ) -> Task<PlayablePuzzle, Never> {
-        if let existingTask = puzzlePreparationTasks[key] {
-            return existingTask
+    private func handleHintSingleTap() {
+        pendingHintTapWorkItem?.cancel()
+        let workItem = DispatchWorkItem {
+            requestRandomHint()
+            pendingHintTapWorkItem = nil
         }
-
-        let task = Task.detached(priority: priority) {
-            BoardPuzzle.generatePlayable(
-                blockCount: key.blockCount,
-                difficulty: key.difficulty
-            )
-        }
-
-        puzzlePreparationTasks[key] = task
-        puzzlePreparationStartDates[key] = Date()
-        _ = preparingPuzzleKeys.insert(key)
-
-        return task
+        pendingHintTapWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.24, execute: workItem)
     }
 
-    private func finishPreparingPuzzle(
-        _ preparedPuzzle: PlayablePuzzle,
-        for key: PuzzleCacheKey,
-        shouldCache: Bool
-    ) {
-        let elapsed = Date().timeIntervalSince(puzzlePreparationStartDates[key] ?? Date())
-
-        if hasRequiredOperatorCards(preparedPuzzle, difficulty: key.difficulty) {
-            puzzlePreparationTimes[key] = elapsed
-
-            if shouldCache, puzzleCache[key] == nil {
-                puzzleCache[key] = preparedPuzzle
-            }
-        }
-
-        preparingPuzzleKeys.remove(key)
-        puzzlePreparationTasks[key] = nil
-        puzzlePreparationStartDates[key] = nil
+    private func handleHintDoubleTap() {
+        pendingHintTapWorkItem?.cancel()
+        pendingHintTapWorkItem = nil
+        openHintGrantDialog()
     }
 
-    private func hasRequiredOperatorCards(
-        _ puzzle: PlayablePuzzle,
-        difficulty: PuzzleDifficulty
-    ) -> Bool {
-        puzzle.operatorCards.count >= difficulty.minimumHiddenOperatorCount(
-            blockCount: puzzle.solution.blocks.count
-        )
+    private func openHintGrantDialog() {
+        hintGrantText = ""
+        showHintGrantDialog = true
+    }
+
+    private func grantHintPoints() {
+        guard let addedPoints = Int(hintGrantText), addedPoints > 0 else {
+            hintGrantText = ""
+            return
+        }
+
+        hintPoints += addedPoints
+        Self.saveHintPoints(hintPoints)
+        hintGrantText = ""
     }
 
     private func placeSelectedCard(at point: GridPoint) {
@@ -1646,6 +1501,8 @@ struct ContentView: View {
             return
         }
 
+        let willCompleteLevel100 = currentLevelNumber == 100 &&
+            clearCount(for: currentPuzzleKey) + 1 >= clearRequirement(for: currentPuzzleKey)
         hasCelebratedCurrentPuzzle = true
         celebrationID += 1
         let unlockResult = recordSolvedPuzzle()
@@ -1654,17 +1511,17 @@ struct ContentView: View {
         let encouragementMessage = unlockResult == nil ? nil : Self.encouragementMessages.randomElement()
 
         withAnimation(.easeOut(duration: 0.2)) {
-            celebrationUnlockMessage = unlockResult?.message
+            celebrationUnlockMessage = willCompleteLevel100 ? "ゲームクリア" : unlockResult?.message
             celebrationEncouragementMessage = encouragementMessage
             clearProgressMessage = progressMessage
             nextUnlockedPuzzleKey = unlockResult?.nextKey ?? nextUnlockedLevelKey()
             showConfetti = true
         }
 
-        playVictoryFeedback(unlockedAchievement: unlockedAchievement)
+        playVictoryFeedback(unlockedAchievement: unlockedAchievement, grandVictory: willCompleteLevel100)
 
         let completedCelebrationID = celebrationID
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.4) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + (willCompleteLevel100 ? 6.4 : 2.4)) {
             guard celebrationID == completedCelebrationID else {
                 return
             }
@@ -1682,15 +1539,28 @@ struct ContentView: View {
         }
     }
 
-    private func playVictoryFeedback(unlockedAchievement: Bool) {
+    private func playVictoryFeedback(unlockedAchievement: Bool, grandVictory: Bool = false) {
         UINotificationFeedbackGenerator().notificationOccurred(.success)
-        AudioServicesPlaySystemSound(unlockedAchievement ? 1025 : 1022)
+        if grandVictory {
+            playGrandVictorySound()
+        } else {
+            AudioServicesPlaySystemSound(unlockedAchievement ? 1025 : 1022)
+        }
+    }
+
+    private func playGrandVictorySound() {
+        let sounds: [SystemSoundID] = [1025, 1022, 1025, 1027, 1025]
+        for (index, sound) in sounds.enumerated() {
+            DispatchQueue.main.asyncAfter(deadline: .now() + Double(index) * 0.32) {
+                AudioServicesPlaySystemSound(sound)
+            }
+        }
     }
 
     private func nextUnlockedLevelKey() -> PuzzleCacheKey? {
         guard
             let nextKey = puzzleKey(forLevel: currentLevelNumber + 1),
-            isUnlocked(blockCount: nextKey.blockCount, difficulty: nextKey.difficulty)
+            isUnlocked(nextKey)
         else {
             return nil
         }
@@ -1701,10 +1571,15 @@ struct ContentView: View {
     @discardableResult
     private func recordSolvedPuzzle() -> UnlockResult? {
         let beforeUnlockedKeys = unlockedKeys()
-        solvedCounts[solvedCountKey(blockCount: blockCount, difficulty: difficulty), default: 0] += 1
+        let completionBucket = completedPuzzleBucket(for: currentPuzzleKey)
+        if let currentPreparedPuzzleID {
+            completedPuzzleIDs[completionBucket, default: []].insert(currentPreparedPuzzleID)
+        }
+        resetCompletedPuzzleIDsIfNeeded(for: currentPuzzleKey, completionBucket: completionBucket)
+        Self.saveCompletedPuzzleIDs(completedPuzzleIDs)
+        solvedCounts[solvedCountKey(level: currentLevelNumber), default: 0] += 1
         unlockMessage = nil
         Self.saveSolvedCounts(solvedCounts)
-        preparePuzzleCache()
         let afterUnlockedKeys = unlockedKeys()
         let newlyUnlockedKeys = afterUnlockedKeys.subtracting(beforeUnlockedKeys)
         guard
@@ -1717,20 +1592,24 @@ struct ContentView: View {
         return UnlockResult(message: message, nextKey: nextKey)
     }
 
-    private func solvedCountKey(blockCount: Int, difficulty: PuzzleDifficulty) -> String {
-        Self.solvedCountKey(blockCount: blockCount, difficulty: difficulty)
-    }
-
-    private static func solvedCountKey(blockCount: Int, difficulty: PuzzleDifficulty) -> String {
-        "\(blockCount)-\(difficulty.rawValue)"
-    }
-
-    private static func formatPreparationTime(_ seconds: TimeInterval) -> String {
-        if seconds < 0.1 {
-            return "<0.1秒"
+    private func resetCompletedPuzzleIDsIfNeeded(for key: PuzzleCacheKey, completionBucket: Int) {
+        let availablePuzzleCount = PreparedPuzzleCatalog.shared.count(for: key)
+        guard
+            availablePuzzleCount > 0,
+            completedPuzzleIDs[completionBucket, default: []].count >= availablePuzzleCount
+        else {
+            return
         }
 
-        return String(format: "%.1f秒", seconds)
+        completedPuzzleIDs[completionBucket] = []
+    }
+
+    private func solvedCountKey(level: Int) -> String {
+        Self.solvedCountKey(level: level)
+    }
+
+    private static func solvedCountKey(level: Int) -> String {
+        "level-\(level)"
     }
 
     private static func loadSolvedCounts() -> [String: Int] {
@@ -1750,38 +1629,119 @@ struct ContentView: View {
         return counts
     }
 
+    private static func loadHintPoints() -> Int {
+        max(UserDefaults.standard.integer(forKey: hintPointsKey), 0)
+    }
+
+    private static func saveHintPoints(_ points: Int) {
+        UserDefaults.standard.set(max(points, 0), forKey: hintPointsKey)
+    }
+
     private static func normalizedSolvedCountKey(_ key: String) -> String {
+        if key.hasPrefix("level-") {
+            return key
+        }
+
         if Int(key) != nil {
-            return "\(key)-\(PuzzleDifficulty.intermediate.rawValue)"
+            return "level-\(key)"
+        }
+
+        let parts = key.split(separator: "-")
+        if
+            parts.count == 2,
+            let blockCount = Int(parts[0]),
+            let difficulty = PuzzleDifficulty(rawValue: String(parts[1]))
+        {
+            return solvedCountKey(level: levelNumber(blockCount: blockCount, difficulty: difficulty))
         }
 
         return key
     }
 
+    private static func loadCompletedPuzzleIDs() -> [Int: Set<Int>] {
+        guard let stored = UserDefaults.standard.dictionary(forKey: completedPuzzleIDsKey) else {
+            return [:]
+        }
+
+        var result: [Int: Set<Int>] = [:]
+        for (key, value) in stored {
+            guard let level = Int(key) else {
+                continue
+            }
+
+            if let ids = value as? [Int] {
+                result[level] = Set(ids)
+            } else if let ids = value as? [NSNumber] {
+                result[level] = Set(ids.map(\.intValue))
+            }
+        }
+        return result
+    }
+
+    private static func initialPlayablePuzzle(
+        for key: PuzzleCacheKey,
+        completedPuzzleIDs: inout [Int: Set<Int>]
+    ) -> (puzzle: PlayablePuzzle, puzzleID: Int?) {
+        let completionBucket = completedPuzzleBucket(for: key)
+        let completedIDs = completedPuzzleIDs[completionBucket, default: []]
+        if let preparedPuzzle = PreparedPuzzleCatalog.shared.puzzle(for: key, excluding: completedIDs) {
+            return (preparedPuzzle.puzzle, preparedPuzzle.id)
+        }
+
+        if !completedIDs.isEmpty, let preparedPuzzle = PreparedPuzzleCatalog.shared.puzzle(for: key, excluding: []) {
+            completedPuzzleIDs[completionBucket] = []
+            saveCompletedPuzzleIDs(completedPuzzleIDs)
+            return (preparedPuzzle.puzzle, preparedPuzzle.id)
+        }
+
+        return (emptyPlayablePuzzle(for: key), nil)
+    }
+
+    private static func emptyPlayablePuzzle(for key: PuzzleCacheKey) -> PlayablePuzzle {
+        let solution = BoardPuzzle(
+            size: BoardPuzzle.size(for: key.blockCount),
+            blocks: [],
+            connections: [],
+            cellContents: [:],
+            equations: [:]
+        )
+
+        return PlayablePuzzle(
+            solution: solution,
+            visibleContents: [:],
+            answerCards: [],
+            operatorCards: [],
+            hiddenNumberPoints: [],
+            hiddenOperatorPoints: [],
+            givenNumberValues: [:],
+            givenOperatorValues: [:]
+        )
+    }
+
     private static func loadCurrentPuzzleKey(solvedCounts: [String: Int]) -> PuzzleCacheKey {
-        let fallback = PuzzleCacheKey(blockCount: BoardPuzzle.defaultBlockCount, difficulty: .beginner)
+        let fallback = PuzzleCacheKey(level: 1, blockCount: BoardPuzzle.defaultBlockCount, difficulty: .beginner)
         return highestUnlockedPuzzleKey(solvedCounts: solvedCounts) ?? fallback
     }
 
     private static func saveCurrentPuzzleKey(_ key: PuzzleCacheKey) {
-        UserDefaults.standard.set(levelNumber(blockCount: key.blockCount, difficulty: key.difficulty), forKey: currentLevelKey)
+        UserDefaults.standard.set(key.level, forKey: currentLevelKey)
     }
 
     private static func highestUnlockedPuzzleKey(solvedCounts: [String: Int]) -> PuzzleCacheKey? {
         var highestKey: PuzzleCacheKey?
         var highestLevel = 0
 
-        for blockCount in BoardPuzzle.blockCountRange {
-            for difficulty in PuzzleDifficulty.allCases {
-                guard isUnlocked(blockCount: blockCount, difficulty: difficulty, solvedCounts: solvedCounts) else {
-                    continue
-                }
+        for level in 1...lastLevelNumber {
+            guard
+                let key = puzzleKey(forLevel: level),
+                isUnlocked(key, solvedCounts: solvedCounts)
+            else {
+                continue
+            }
 
-                let level = levelNumber(blockCount: blockCount, difficulty: difficulty)
-                if level > highestLevel {
-                    highestLevel = level
-                    highestKey = PuzzleCacheKey(blockCount: blockCount, difficulty: difficulty)
-                }
+            if level > highestLevel {
+                highestLevel = level
+                highestKey = key
             }
         }
 
@@ -1789,24 +1749,31 @@ struct ContentView: View {
     }
 
     private static func puzzleKey(forLevel level: Int) -> PuzzleCacheKey? {
-        guard level > 0 else {
+        guard (1...lastLevelNumber).contains(level) else {
             return nil
         }
 
-        let zeroBasedLevel = level - 1
-        let difficultyCount = PuzzleDifficulty.allCases.count
-        let blockCount = BoardPuzzle.blockCountRange.lowerBound + zeroBasedLevel / difficultyCount
-        let difficultyIndex = zeroBasedLevel % difficultyCount
+        if level <= 64 {
+            let zeroBasedLevel = level - 1
+            let difficultyCount = PuzzleDifficulty.allCases.count
+            let blockCount = BoardPuzzle.blockCountRange.lowerBound + zeroBasedLevel / difficultyCount
+            let difficultyIndex = zeroBasedLevel % difficultyCount
 
-        guard let difficulty = PuzzleDifficulty.allCases.first(where: { $0.sortOrder == difficultyIndex }) else {
-            return nil
+            guard
+                let difficulty = PuzzleDifficulty.allCases.first(where: { $0.sortOrder == difficultyIndex }),
+                BoardPuzzle.blockCountRange.contains(blockCount)
+            else {
+                return nil
+            }
+
+            return PuzzleCacheKey(level: level, blockCount: blockCount, difficulty: difficulty)
         }
 
-        guard BoardPuzzle.blockCountRange.contains(blockCount) else {
-            return nil
+        if level <= 100 {
+            return PuzzleCacheKey(level: level, blockCount: 18, difficulty: .advanced)
         }
 
-        return PuzzleCacheKey(blockCount: blockCount, difficulty: difficulty)
+        return PuzzleCacheKey(level: level, blockCount: 20, difficulty: .advanced)
     }
 
     private static func levelNumber(blockCount: Int, difficulty: PuzzleDifficulty) -> Int {
@@ -1815,48 +1782,38 @@ struct ContentView: View {
     }
 
     private static func isUnlocked(
-        blockCount: Int,
-        difficulty: PuzzleDifficulty,
+        _ key: PuzzleCacheKey,
         solvedCounts: [String: Int]
     ) -> Bool {
-        guard BoardPuzzle.blockCountRange.contains(blockCount) else {
+        guard (1...lastLevelNumber).contains(key.level) else {
             return false
         }
 
-        guard solvedCounts[solvedCountKey(blockCount: blockCount, difficulty: difficulty), default: 0] == 0 else {
+        guard solvedCounts[solvedCountKey(level: key.level), default: 0] == 0 else {
             return true
         }
 
-        switch difficulty {
-        case .beginner:
-            guard blockCount > BoardPuzzle.blockCountRange.lowerBound else {
-                return true
-            }
-
-            return solvedCounts[
-                solvedCountKey(blockCount: blockCount - 1, difficulty: .expert),
-                default: 0
-            ] >= clearRequirementValue(after: .expert)
-        case .intermediate:
-            return solvedCounts[
-                solvedCountKey(blockCount: blockCount, difficulty: .beginner),
-                default: 0
-            ] >= clearRequirementValue(after: .beginner)
-        case .advanced:
-            return solvedCounts[
-                solvedCountKey(blockCount: blockCount, difficulty: .intermediate),
-                default: 0
-            ] >= clearRequirementValue(after: .intermediate)
-        case .expert:
-            return solvedCounts[
-                solvedCountKey(blockCount: blockCount, difficulty: .advanced),
-                default: 0
-            ] >= clearRequirementValue(after: .advanced)
+        guard key.level > 1, let previousKey = puzzleKey(forLevel: key.level - 1) else {
+            return true
         }
+
+        return solvedCounts[solvedCountKey(level: previousKey.level), default: 0] >= clearRequirementValue(for: previousKey)
     }
 
-    private static func clearRequirementValue(after difficulty: PuzzleDifficulty) -> Int {
-        switch difficulty {
+    private static func completedPuzzleBucket(for key: PuzzleCacheKey) -> Int {
+        key.level
+    }
+
+    private static func clearRequirementValue(for key: PuzzleCacheKey) -> Int {
+        if key.level >= 101 {
+            return 3
+        }
+
+        if key.level >= 65 {
+            return 3
+        }
+
+        switch key.difficulty {
         case .beginner:
             return 1
         case .intermediate:
@@ -1869,11 +1826,29 @@ struct ContentView: View {
     private static func saveSolvedCounts(_ counts: [String: Int]) {
         UserDefaults.standard.set(counts, forKey: solvedCountsKey)
     }
+
+    private static func saveCompletedPuzzleIDs(_ ids: [Int: Set<Int>]) {
+        let encoded = Dictionary(
+            uniqueKeysWithValues: ids.map { level, values in
+                (String(level), values.sorted())
+            }
+        )
+        UserDefaults.standard.set(encoded, forKey: completedPuzzleIDsKey)
+    }
 }
 
 struct PuzzleCacheKey: Hashable, Codable {
+    let level: Int
     let blockCount: Int
     let difficulty: PuzzleDifficulty
+    var sourceLevel: Int
+
+    init(level: Int, blockCount: Int, difficulty: PuzzleDifficulty, sourceLevel: Int? = nil) {
+        self.level = level
+        self.blockCount = blockCount
+        self.difficulty = difficulty
+        self.sourceLevel = sourceLevel ?? level
+    }
 }
 
 private struct UnlockResult {

@@ -47,4 +47,4 @@ https://github.com/fukuyori/MathCross.git
 
 ## Version
 
-Current app version: `0.3.0`
+Current app version: `0.5.0`
