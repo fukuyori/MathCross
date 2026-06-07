@@ -32,28 +32,50 @@ struct ContentView: View {
     @State private var showReplacePuzzleConfirmDialog = false
     @State private var hintGrantText = ""
     @State private var pendingHintTapWorkItem: DispatchWorkItem?
+    @State private var snappingPlacedPoints: Set<GridPoint> = []
 
-    private let appVersion = "0.5.0"
+    private let appVersion = "0.6.0"
     private let cellSpacing: CGFloat = 2
     private let ink = Color(red: 0.12, green: 0.15, blue: 0.18)
     private let accent = Color(red: 0.04, green: 0.45, blue: 0.39)
+    private let heartAccent = Color(red: 0.92, green: 0.08, blue: 0.16)
     private let selectedAccent = Color(red: 0.95, green: 0.72, blue: 0.24)
     private let errorAccent = Color(red: 0.86, green: 0.13, blue: 0.16)
-    private let backgroundTop = Color(red: 0.78, green: 0.84, blue: 0.82)
-    private let backgroundBottom = Color(red: 0.58, green: 0.68, blue: 0.65)
-    private let panelTop = Color(red: 0.99, green: 0.99, blue: 0.96)
-    private let panelBottom = Color(red: 0.91, green: 0.95, blue: 0.92)
-    private let operatorFill = Color(red: 0.95, green: 0.91, blue: 0.75)
-    private let givenFill = Color(red: 0.97, green: 0.93, blue: 0.76)
-    private let emptyFill = Color(red: 0.98, green: 0.97, blue: 0.93)
-    private let placedFill = Color(red: 0.80, green: 0.94, blue: 0.88)
-    private let cardFill = Color(red: 0.85, green: 0.96, blue: 0.93)
+    private let backgroundTop = Color(red: 0.66, green: 0.47, blue: 0.28)
+    private let backgroundBottom = Color(red: 0.36, green: 0.23, blue: 0.14)
+    private let panelTop = Color(red: 0.82, green: 0.60, blue: 0.34)
+    private let panelBottom = Color(red: 0.55, green: 0.36, blue: 0.20)
+    private let operatorFill = Color(red: 0.90, green: 0.86, blue: 0.78)
+    private let givenFill = Color(red: 0.95, green: 0.92, blue: 0.84)
+    private let emptyFill = Color(red: 0.57, green: 0.38, blue: 0.22)
+    private let placedFill = Color(red: 0.95, green: 0.66, blue: 0.50)
+    private let cardFill = Color(red: 0.95, green: 0.66, blue: 0.50)
     private let panelRadius: CGFloat = 10
     private static let solvedCountsKey = "mathCross.solvedCountsByBlockCount"
     private static let currentLevelKey = "mathCross.currentLevel"
     private static let completedPuzzleIDsKey = "mathCross.completedPuzzleIDsByLevel"
     private static let hintPointsKey = "mathCross.hintPoints"
-    private static let lastLevelNumber = 136
+    private static let maximumHintPoints = 10
+    private static let grandClearMessage = "全レベルをクリアしました！"
+    private static let preparedPuzzleKeysByLevel: [Int: PuzzleCacheKey] = {
+        let keys = PreparedPuzzleCatalog.shared.levelKeys()
+        guard !keys.isEmpty else {
+            let fallback = PuzzleCacheKey(
+                level: 1,
+                blockCount: BoardPuzzle.defaultBlockCount,
+                difficulty: .beginner
+            )
+            return [fallback.level: fallback]
+        }
+
+        return Dictionary(uniqueKeysWithValues: keys.map { ($0.level, $0) })
+    }()
+    private static var availableLevelNumbers: [Int] {
+        preparedPuzzleKeysByLevel.keys.sorted()
+    }
+    private static var lastLevelNumber: Int {
+        availableLevelNumbers.last ?? 1
+    }
     private static let encouragementMessages = [
         "お疲れ様でございます",
         "大変お疲れ様でした",
@@ -157,7 +179,7 @@ struct ContentView: View {
     }
 
     private var nextLevelKey: PuzzleCacheKey? {
-        return puzzleKey(forLevel: currentLevelNumber + 1)
+        nextPuzzleKey(after: currentPuzzleKey)
     }
 
     private var maximumLevelNumber: Int {
@@ -165,7 +187,15 @@ struct ContentView: View {
     }
 
     private var levelProgress: Double {
-        min(Double(level - 1) / Double(max(Self.lastLevelNumber - 1, 1)), 1)
+        let levels = Self.availableLevelNumbers
+        guard
+            let index = levels.firstIndex(of: level),
+            levels.count > 1
+        else {
+            return 0
+        }
+
+        return min(Double(index) / Double(levels.count - 1), 1)
     }
 
     private var backgroundTheme: BackgroundTheme {
@@ -523,17 +553,21 @@ struct ContentView: View {
             )
             .fixedSize(horizontal: true, vertical: false)
 
-            HStack(spacing: 6) {
-                Image(systemName: "lightbulb.fill")
-                    .font(.system(size: 18, weight: .heavy))
-                Text("\(hintPoints)")
-                    .font(.system(size: 20, weight: .heavy, design: .rounded).monospacedDigit())
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.75)
+            VStack(spacing: 3) {
+                ForEach(0..<2, id: \.self) { row in
+                    HStack(spacing: 3) {
+                        ForEach(0..<5, id: \.self) { column in
+                            let index = row * 5 + column
+                            Image(systemName: index < hintPoints ? "heart.fill" : "heart")
+                                .font(.system(size: 12, weight: .heavy))
+                                .foregroundStyle(index < hintPoints ? heartAccent : ink.opacity(0.18))
+                                .frame(width: 13, height: 13)
+                        }
+                    }
+                }
             }
-            .frame(width: 62, height: 50)
+            .frame(width: 86, height: 50)
             .background(Color.white.opacity(0.94))
-            .foregroundStyle(accent)
             .clipShape(RoundedRectangle(cornerRadius: 8))
             .overlay(
                 RoundedRectangle(cornerRadius: 8)
@@ -564,23 +598,36 @@ struct ContentView: View {
     }
 
     private func unlockCelebration(message: String, encouragement: String?, nextKey: PuzzleCacheKey?) -> some View {
-        VStack(spacing: 14) {
-            Image(systemName: "lock.open.fill")
-                .font(.system(size: 30, weight: .bold))
-                .foregroundStyle(selectedAccent)
+        let isGrandClear = message == Self.grandClearMessage
 
-            Text("アンロック")
-                .font(.system(size: 18, weight: .heavy, design: .rounded))
-                .foregroundStyle(accent)
+        return VStack(spacing: 14) {
+            if isGrandClear {
+                Image("GrandClearCelebration")
+                    .resizable()
+                    .scaledToFit()
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(Color.white.opacity(0.7), lineWidth: 1)
+                    )
+            } else {
+                Image(systemName: "lock.open.fill")
+                    .font(.system(size: 30, weight: .bold))
+                    .foregroundStyle(selectedAccent)
 
-            Text(message)
-                .font(.system(size: 26, weight: .heavy, design: .rounded))
-                .foregroundStyle(ink)
-                .multilineTextAlignment(.center)
-                .lineLimit(2)
-                .minimumScaleFactor(0.75)
+                Text("アンロック")
+                    .font(.system(size: 18, weight: .heavy, design: .rounded))
+                    .foregroundStyle(accent)
 
-            if let encouragement {
+                Text(message)
+                    .font(.system(size: 26, weight: .heavy, design: .rounded))
+                    .foregroundStyle(ink)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.75)
+            }
+
+            if let encouragement, !isGrandClear {
                 Text(encouragement)
                     .font(.system(size: 20, weight: .heavy, design: .rounded))
                     .foregroundStyle(ink.opacity(0.72))
@@ -594,7 +641,7 @@ struct ContentView: View {
                 Button {
                     goToUnlockedPuzzle(nextKey)
                 } label: {
-                    Label("次のレベルへ", systemImage: "arrow.right.circle.fill")
+                    Label(isGrandClear ? "レベル1へ" : "次のレベルへ", systemImage: "arrow.right.circle.fill")
                         .font(.system(size: 20, weight: .heavy, design: .rounded))
                         .frame(width: 240, height: 56)
                 }
@@ -607,7 +654,7 @@ struct ContentView: View {
         }
         .padding(.horizontal, 28)
         .padding(.vertical, 22)
-        .frame(maxWidth: 420)
+        .frame(maxWidth: isGrandClear ? 560 : 420)
         .background(panelBackground)
         .clipShape(RoundedRectangle(cornerRadius: panelRadius))
         .overlay(
@@ -685,14 +732,53 @@ struct ContentView: View {
     }
 
     private var panelBackground: some View {
-        LinearGradient(
-            colors: [
-                panelTop,
-                panelBottom
-            ],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-        )
+        ZStack {
+            LinearGradient(
+                colors: [
+                    Color(red: 0.92, green: 0.72, blue: 0.42),
+                    panelTop,
+                    panelBottom
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            woodGrainOverlay(cornerRadius: panelRadius, opacity: 0.22)
+        }
+    }
+
+    private func woodGrainOverlay(cornerRadius: CGFloat, opacity: Double) -> some View {
+        GeometryReader { proxy in
+            let width = max(proxy.size.width, 1)
+            let height = max(proxy.size.height, 1)
+
+            ZStack {
+                ForEach(0..<7, id: \.self) { index in
+                    Capsule()
+                        .fill(Color.white.opacity(index.isMultiple(of: 2) ? 0.18 : 0.10))
+                        .frame(width: width * 0.92, height: max(0.7, width * 0.004))
+                        .rotationEffect(.degrees(index.isMultiple(of: 2) ? -9 : -5))
+                        .offset(
+                            x: CGFloat(index - 3) * width * 0.035,
+                            y: CGFloat(index - 3) * height * 0.145
+                        )
+                }
+
+                ForEach(0..<5, id: \.self) { index in
+                    Capsule()
+                        .fill(ink.opacity(0.10))
+                        .frame(width: width * 0.78, height: max(0.6, width * 0.003))
+                        .rotationEffect(.degrees(-7))
+                        .offset(
+                            x: CGFloat(2 - index) * width * 0.050,
+                            y: CGFloat(index - 2) * height * 0.180
+                        )
+                }
+            }
+            .frame(width: width, height: height)
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
+        }
+        .opacity(opacity)
+        .allowsHitTesting(false)
     }
 
     private func cardTray(width: CGFloat, cardSide: CGFloat, spacing: CGFloat, padding: CGFloat) -> some View {
@@ -716,10 +802,7 @@ struct ContentView: View {
                     .foregroundStyle(isUsed ? ink.opacity(0.22) : (isSelected ? ink : accent))
                     .frame(width: cardSide, height: cardSide)
                     .background(
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(cardFillStyle(isUsed: isUsed, isSelected: isSelected))
-                            .shadow(color: Color.white.opacity(isUsed ? 0 : 0.55), radius: 1, x: -1, y: -1)
-                            .shadow(color: ink.opacity(isUsed ? 0 : 0.16), radius: 4, x: 0, y: 3)
+                        woodBlockBackground(isUsed: isUsed, isSelected: isSelected, cornerRadius: 8)
                     )
                     .overlay(
                         RoundedRectangle(cornerRadius: 8)
@@ -748,10 +831,7 @@ struct ContentView: View {
                     .foregroundStyle(isUsed ? ink.opacity(0.22) : (isSelected ? ink : accent))
                     .frame(width: cardSide, height: cardSide)
                     .background(
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(cardFillStyle(isUsed: isUsed, isSelected: isSelected))
-                            .shadow(color: Color.white.opacity(isUsed ? 0 : 0.55), radius: 1, x: -1, y: -1)
-                            .shadow(color: ink.opacity(isUsed ? 0 : 0.16), radius: 4, x: 0, y: 3)
+                        woodBlockBackground(isUsed: isUsed, isSelected: isSelected, cornerRadius: 8)
                     )
                     .overlay(
                         RoundedRectangle(cornerRadius: 8)
@@ -815,12 +895,30 @@ struct ContentView: View {
         let content = placedNumberValue.map(String.init) ?? placedOperatorValue?.rawValue ?? puzzle.visibleContents[point]
         let hintedContent = hintedNumberPoints.contains(point) ? puzzle.solution.cellContents[point] : nil
         let hasPlacedValue = placedNumberValue != nil || placedOperatorValue != nil
-        let hasEquationError = isIncorrectPlacedInput(at: point)
+        let isFloatingPlacedValue = isFloatingPlacedInput(at: point)
+        let isSnappingPlacedValue = snappingPlacedPoints.contains(point)
 
         return ZStack {
             RoundedRectangle(cornerRadius: 4)
                 .fill(cellFill(block: block, point: point, content: content, hasPlacedValue: hasPlacedValue))
-                .shadow(color: cellShadow(block: block, point: point, hasPlacedValue: hasPlacedValue), radius: 3, x: 0, y: 2)
+                .shadow(
+                    color: cellShadow(
+                        block: block,
+                        point: point,
+                        hasPlacedValue: hasPlacedValue,
+                        isFloatingPlacedValue: isFloatingPlacedValue
+                    ),
+                    radius: isFloatingPlacedValue ? 13 : 3,
+                    x: 0,
+                    y: isFloatingPlacedValue ? 12 : 2
+                )
+
+            if block != nil {
+                woodGrainOverlay(
+                    cornerRadius: 4,
+                    opacity: (isHiddenNumber || isHiddenOperator) && !hasPlacedValue ? 0.12 : 0.24
+                )
+            }
 
             if let content {
                 Text(content)
@@ -836,20 +934,21 @@ struct ContentView: View {
                     .foregroundStyle(ink.opacity(0.26))
             }
         }
+        .scaleEffect(isFloatingPlacedValue ? 1.10 : (isSnappingPlacedValue ? 0.92 : 1.0))
+        .offset(y: isFloatingPlacedValue ? -7.0 : (isSnappingPlacedValue ? 3.5 : 0))
+        .zIndex(isFloatingPlacedValue ? 2 : 0)
         .overlay(
             RoundedRectangle(cornerRadius: 4)
                 .stroke(
-                    borderColor(block: block, point: point, hasEquationError: hasEquationError),
-                    lineWidth: hasEquationError ? 2.6 : ((isHiddenNumber || isHiddenOperator) ? 1.2 : 1.5)
+                    Color.white.opacity(block == nil ? 0 : (hasPlacedValue ? 0.12 : 0.34)),
+                    lineWidth: 0.6
                 )
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 4)
-                .stroke(Color.white.opacity(block == nil ? 0 : 0.56), lineWidth: 0.8)
                 .padding(1)
         )
         .aspectRatio(1, contentMode: .fit)
         .contentShape(Rectangle())
+        .animation(.spring(response: 0.22, dampingFraction: 0.58), value: isFloatingPlacedValue)
+        .animation(.easeOut(duration: 0.12), value: isSnappingPlacedValue)
         .onTapGesture {
             guard isHiddenNumber || isHiddenOperator else { return }
             placeSelectedCard(at: point)
@@ -882,6 +981,10 @@ struct ContentView: View {
 
         if hasEquationError {
             return errorAccent
+        }
+
+        if placedCards[point] != nil || placedOperatorCards[point] != nil {
+            return .clear
         }
 
         if puzzle.hiddenNumberPoints.contains(point), placedCards[point] == nil {
@@ -919,6 +1022,35 @@ struct ContentView: View {
         }
     }
 
+    private func isFloatingPlacedInput(at point: GridPoint) -> Bool {
+        guard placedCards[point] != nil || placedOperatorCards[point] != nil else {
+            return false
+        }
+
+        let relatedBlocks = puzzle.solution.blocks(at: point)
+        guard !relatedBlocks.isEmpty else {
+            return false
+        }
+
+        return !relatedBlocks.allSatisfy { block in
+            isCompleteAndCorrect(block)
+        }
+    }
+
+    private func isCompleteAndCorrect(_ block: BoardBlock) -> Bool {
+        let points = numberPoints(for: block)
+        guard
+            let lhs = currentNumberValue(at: points[0]),
+            let rhs = currentNumberValue(at: points[1]),
+            let result = currentNumberValue(at: points[2]),
+            let operation = currentOperatorValue(for: block)
+        else {
+            return false
+        }
+
+        return operation.apply(lhs, rhs) == result
+    }
+
     private func currentNumberValue(at point: GridPoint) -> Int? {
         if let placedValue = placedCards[point]?.value {
             return placedValue
@@ -941,16 +1073,25 @@ struct ContentView: View {
         return [cells[0], cells[2], cells[4]]
     }
 
-    private func cellShadow(block: BoardBlock?, point: GridPoint, hasPlacedValue: Bool) -> Color {
+    private func cellShadow(
+        block: BoardBlock?,
+        point: GridPoint,
+        hasPlacedValue: Bool,
+        isFloatingPlacedValue: Bool = false
+    ) -> Color {
         guard block != nil else {
             return .clear
+        }
+
+        if isFloatingPlacedValue {
+            return ink.opacity(0.55)
         }
 
         if (puzzle.hiddenNumberPoints.contains(point) || puzzle.hiddenOperatorPoints.contains(point)), !hasPlacedValue {
             return ink.opacity(0.06)
         }
 
-        return ink.opacity(0.18)
+        return ink.opacity(hasPlacedValue ? 0.30 : 0.18)
     }
 
     private func cellFill(
@@ -967,7 +1108,7 @@ struct ContentView: View {
             return AnyShapeStyle(
                 LinearGradient(
                     colors: [
-                        Color(red: 0.91, green: 1.00, blue: 0.94),
+                        Color(red: 1.00, green: 0.84, blue: 0.72),
                         placedFill
                     ],
                     startPoint: .topLeading,
@@ -980,7 +1121,7 @@ struct ContentView: View {
             return AnyShapeStyle(
                 LinearGradient(
                     colors: [
-                        Color(red: 1.00, green: 0.99, blue: 0.95),
+                        Color(red: 0.70, green: 0.49, blue: 0.29),
                         emptyFill
                     ],
                     startPoint: .topLeading,
@@ -993,7 +1134,7 @@ struct ContentView: View {
             return AnyShapeStyle(
                 LinearGradient(
                     colors: [
-                        Color(red: 1.00, green: 0.98, blue: 0.84),
+                        Color(red: 1.00, green: 0.98, blue: 0.91),
                         givenFill
                     ],
                     startPoint: .topLeading,
@@ -1005,7 +1146,7 @@ struct ContentView: View {
         return AnyShapeStyle(
             LinearGradient(
                 colors: [
-                    Color(red: 1.00, green: 0.97, blue: 0.82),
+                    Color(red: 0.98, green: 0.96, blue: 0.88),
                     operatorFill
                 ],
                 startPoint: .topLeading,
@@ -1014,13 +1155,35 @@ struct ContentView: View {
         )
     }
 
+    private func woodBlockBackground(
+        isUsed: Bool,
+        isSelected: Bool = false,
+        cornerRadius: CGFloat
+    ) -> some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: cornerRadius)
+                .fill(cardFillStyle(isUsed: isUsed, isSelected: isSelected))
+
+            if !isUsed {
+                woodGrainOverlay(cornerRadius: cornerRadius, opacity: isSelected ? 0.34 : 0.26)
+            }
+        }
+        .overlay(
+            RoundedRectangle(cornerRadius: cornerRadius)
+                .stroke(Color.white.opacity(isUsed ? 0 : 0.42), lineWidth: 1)
+                .padding(1.3)
+        )
+        .shadow(color: Color.white.opacity(isUsed ? 0 : 0.42), radius: 1, x: -1, y: -1)
+        .shadow(color: ink.opacity(isUsed ? 0 : 0.24), radius: 5, x: 0, y: 4)
+    }
+
     private func cardFillStyle(isUsed: Bool, isSelected: Bool = false) -> AnyShapeStyle {
         if isSelected {
             return AnyShapeStyle(
                 LinearGradient(
                     colors: [
-                        Color(red: 1.00, green: 0.88, blue: 0.35),
-                        Color(red: 0.96, green: 0.62, blue: 0.18)
+                        Color(red: 1.00, green: 0.77, blue: 0.35),
+                        Color(red: 0.73, green: 0.39, blue: 0.17)
                     ],
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
@@ -1044,7 +1207,7 @@ struct ContentView: View {
         return AnyShapeStyle(
             LinearGradient(
                 colors: [
-                    Color(red: 0.91, green: 1.00, blue: 0.98),
+                    Color(red: 1.00, green: 0.84, blue: 0.72),
                     cardFill
                 ],
                 startPoint: .topLeading,
@@ -1071,6 +1234,14 @@ struct ContentView: View {
         Self.puzzleKey(forLevel: level)
     }
 
+    private func previousPuzzleKey(for key: PuzzleCacheKey) -> PuzzleCacheKey? {
+        Self.previousPuzzleKey(for: key)
+    }
+
+    private func nextPuzzleKey(after key: PuzzleCacheKey) -> PuzzleCacheKey? {
+        Self.nextPuzzleKey(after: key)
+    }
+
     private func showUnlockMessage(for blockCount: Int, difficulty: PuzzleDifficulty) {
         withAnimation(.snappy) {
             let key = puzzleKey(forLevel: levelNumber(blockCount: blockCount, difficulty: difficulty))
@@ -1079,7 +1250,7 @@ struct ContentView: View {
     }
 
     private func unlockRequirementText(for key: PuzzleCacheKey) -> String {
-        guard key.level > 1, let previousKey = puzzleKey(forLevel: key.level - 1) else {
+        guard let previousKey = previousPuzzleKey(for: key) else {
             return "レベル \(key.level) はまだ解放されていません"
         }
 
@@ -1091,22 +1262,7 @@ struct ContentView: View {
     }
 
     private func clearRequirement(for key: PuzzleCacheKey) -> Int {
-        if key.level >= 101 {
-            return 3
-        }
-
-        if key.level >= 65 {
-            return 3
-        }
-
-        switch key.difficulty {
-        case .beginner:
-            return 1
-        case .intermediate:
-            return 2
-        case .advanced, .expert:
-            return 3
-        }
+        Self.clearRequirementValue(for: key)
     }
 
     private func remainingClears(required: Int, current: Int) -> Int {
@@ -1138,7 +1294,7 @@ struct ContentView: View {
     private func unlockedKeys() -> Set<PuzzleCacheKey> {
         var keys: Set<PuzzleCacheKey> = []
 
-        for level in 1...maximumLevelNumber {
+        for level in Self.availableLevelNumbers {
             if let key = puzzleKey(forLevel: level), isUnlocked(key) {
                 keys.insert(key)
             }
@@ -1177,7 +1333,7 @@ struct ContentView: View {
             return true
         }
 
-        guard key.level > 1, let previousKey = puzzleKey(forLevel: key.level - 1) else {
+        guard let previousKey = previousPuzzleKey(for: key) else {
             return true
         }
 
@@ -1215,7 +1371,7 @@ struct ContentView: View {
         var seededSolvedCounts: [String: Int] = [:]
 
         if targetLevel > 1 {
-            for level in 1...targetLevel {
+            for level in Self.availableLevelNumbers where level <= targetLevel {
                 guard let key = puzzleKey(forLevel: level) else {
                     continue
                 }
@@ -1408,7 +1564,7 @@ struct ContentView: View {
             return
         }
 
-        hintPoints += addedPoints
+        hintPoints = min(Self.maximumHintPoints, hintPoints + addedPoints)
         Self.saveHintPoints(hintPoints)
         hintGrantText = ""
     }
@@ -1437,11 +1593,16 @@ struct ContentView: View {
             return
         }
 
-        placedCards[point] = PlacedCard(
-            cardIndex: selectedCardIndex,
-            value: puzzle.answerCards[selectedCardIndex]
-        )
-        self.selectedCardIndex = nil
+        let floatingBefore = floatingPlacedInputPoints()
+        withAnimation(.spring(response: 0.24, dampingFraction: 0.62)) {
+            placedCards[point] = PlacedCard(
+                cardIndex: selectedCardIndex,
+                value: puzzle.answerCards[selectedCardIndex]
+            )
+            self.selectedCardIndex = nil
+        }
+        triggerSnapForSettledPoints(previouslyFloating: floatingBefore)
+        playWoodBlockPlaceFeedback()
         checkCompletion()
     }
 
@@ -1460,12 +1621,38 @@ struct ContentView: View {
             return
         }
 
-        placedOperatorCards[point] = PlacedOperatorCard(
-            cardIndex: selectedOperatorCardIndex,
-            operation: puzzle.operatorCards[selectedOperatorCardIndex]
-        )
-        self.selectedOperatorCardIndex = nil
+        let floatingBefore = floatingPlacedInputPoints()
+        withAnimation(.spring(response: 0.24, dampingFraction: 0.62)) {
+            placedOperatorCards[point] = PlacedOperatorCard(
+                cardIndex: selectedOperatorCardIndex,
+                operation: puzzle.operatorCards[selectedOperatorCardIndex]
+            )
+            self.selectedOperatorCardIndex = nil
+        }
+        triggerSnapForSettledPoints(previouslyFloating: floatingBefore)
         checkCompletion()
+    }
+
+    private func floatingPlacedInputPoints() -> Set<GridPoint> {
+        let points = Array(placedCards.keys) + Array(placedOperatorCards.keys)
+        return Set(points.filter { isFloatingPlacedInput(at: $0) })
+    }
+
+    private func triggerSnapForSettledPoints(previouslyFloating: Set<GridPoint>) {
+        let settledPoints = previouslyFloating.subtracting(floatingPlacedInputPoints())
+        guard !settledPoints.isEmpty else {
+            return
+        }
+
+        withAnimation(.easeOut(duration: 0.10)) {
+            snappingPlacedPoints.formUnion(settledPoints)
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+            withAnimation(.spring(response: 0.20, dampingFraction: 0.50)) {
+                snappingPlacedPoints.subtract(settledPoints)
+            }
+        }
     }
 
     private func checkCompletion() {
@@ -1501,27 +1688,30 @@ struct ContentView: View {
             return
         }
 
-        let willCompleteLevel100 = currentLevelNumber == 100 &&
+        let willCompleteMaximumLevel = currentLevelNumber == maximumLevelNumber &&
             clearCount(for: currentPuzzleKey) + 1 >= clearRequirement(for: currentPuzzleKey)
         hasCelebratedCurrentPuzzle = true
         celebrationID += 1
         let unlockResult = recordSolvedPuzzle()
+        if willCompleteMaximumLevel {
+            resetProgressAfterCompletingMaximumLevel()
+        }
         let unlockedAchievement = unlockResult != nil
-        let progressMessage = unlockResult == nil ? levelUpRemainingMessage() : nil
+        let progressMessage = (unlockResult == nil && !willCompleteMaximumLevel) ? levelUpRemainingMessage() : nil
         let encouragementMessage = unlockResult == nil ? nil : Self.encouragementMessages.randomElement()
 
         withAnimation(.easeOut(duration: 0.2)) {
-            celebrationUnlockMessage = willCompleteLevel100 ? "ゲームクリア" : unlockResult?.message
+            celebrationUnlockMessage = willCompleteMaximumLevel ? Self.grandClearMessage : unlockResult?.message
             celebrationEncouragementMessage = encouragementMessage
             clearProgressMessage = progressMessage
-            nextUnlockedPuzzleKey = unlockResult?.nextKey ?? nextUnlockedLevelKey()
+            nextUnlockedPuzzleKey = willCompleteMaximumLevel ? Self.firstPuzzleKey() : (unlockResult?.nextKey ?? nextUnlockedLevelKey())
             showConfetti = true
         }
 
-        playVictoryFeedback(unlockedAchievement: unlockedAchievement, grandVictory: willCompleteLevel100)
+        playVictoryFeedback(unlockedAchievement: unlockedAchievement, grandVictory: willCompleteMaximumLevel)
 
         let completedCelebrationID = celebrationID
-        DispatchQueue.main.asyncAfter(deadline: .now() + (willCompleteLevel100 ? 6.4 : 2.4)) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + (willCompleteMaximumLevel ? 6.4 : 2.4)) {
             guard celebrationID == completedCelebrationID else {
                 return
             }
@@ -1537,6 +1727,11 @@ struct ContentView: View {
                 }
             }
         }
+    }
+
+    private func playWoodBlockPlaceFeedback() {
+        UIImpactFeedbackGenerator(style: .light).impactOccurred(intensity: 0.65)
+        AudioServicesPlaySystemSound(1104)
     }
 
     private func playVictoryFeedback(unlockedAchievement: Bool, grandVictory: Bool = false) {
@@ -1559,7 +1754,7 @@ struct ContentView: View {
 
     private func nextUnlockedLevelKey() -> PuzzleCacheKey? {
         guard
-            let nextKey = puzzleKey(forLevel: currentLevelNumber + 1),
+            let nextKey = nextPuzzleKey(after: currentPuzzleKey),
             isUnlocked(nextKey)
         else {
             return nil
@@ -1568,9 +1763,23 @@ struct ContentView: View {
         return nextKey
     }
 
+    private func resetProgressAfterCompletingMaximumLevel() {
+        solvedCounts = [:]
+        completedPuzzleIDs = [:]
+        Self.saveSolvedCounts(solvedCounts)
+        Self.saveCompletedPuzzleIDs(completedPuzzleIDs)
+        if let firstKey = Self.firstPuzzleKey() {
+            Self.saveCurrentPuzzleKey(firstKey)
+        }
+    }
+
     @discardableResult
     private func recordSolvedPuzzle() -> UnlockResult? {
         let beforeUnlockedKeys = unlockedKeys()
+        let clearCountBefore = clearCount(for: currentPuzzleKey)
+        let clearRequirement = clearRequirement(for: currentPuzzleKey)
+        let willClearLevel = clearCountBefore < clearRequirement &&
+            clearCountBefore + 1 >= clearRequirement
         let completionBucket = completedPuzzleBucket(for: currentPuzzleKey)
         if let currentPreparedPuzzleID {
             completedPuzzleIDs[completionBucket, default: []].insert(currentPreparedPuzzleID)
@@ -1578,6 +1787,10 @@ struct ContentView: View {
         resetCompletedPuzzleIDsIfNeeded(for: currentPuzzleKey, completionBucket: completionBucket)
         Self.saveCompletedPuzzleIDs(completedPuzzleIDs)
         solvedCounts[solvedCountKey(level: currentLevelNumber), default: 0] += 1
+        if willClearLevel {
+            hintPoints = min(Self.maximumHintPoints, hintPoints + 1)
+            Self.saveHintPoints(hintPoints)
+        }
         unlockMessage = nil
         Self.saveSolvedCounts(solvedCounts)
         let afterUnlockedKeys = unlockedKeys()
@@ -1630,11 +1843,11 @@ struct ContentView: View {
     }
 
     private static func loadHintPoints() -> Int {
-        max(UserDefaults.standard.integer(forKey: hintPointsKey), 0)
+        min(max(UserDefaults.standard.integer(forKey: hintPointsKey), 0), maximumHintPoints)
     }
 
     private static func saveHintPoints(_ points: Int) {
-        UserDefaults.standard.set(max(points, 0), forKey: hintPointsKey)
+        UserDefaults.standard.set(min(max(points, 0), maximumHintPoints), forKey: hintPointsKey)
     }
 
     private static func normalizedSolvedCountKey(_ key: String) -> String {
@@ -1699,7 +1912,7 @@ struct ContentView: View {
 
     private static func emptyPlayablePuzzle(for key: PuzzleCacheKey) -> PlayablePuzzle {
         let solution = BoardPuzzle(
-            size: BoardPuzzle.size(for: key.blockCount),
+            size: emptyBoardSize(for: key),
             blocks: [],
             connections: [],
             cellContents: [:],
@@ -1718,8 +1931,17 @@ struct ContentView: View {
         )
     }
 
+    private static func emptyBoardSize(for key: PuzzleCacheKey) -> Int {
+        if key.level >= 161 {
+            return 18
+        }
+
+        return BoardPuzzle.size(for: key.blockCount)
+    }
+
     private static func loadCurrentPuzzleKey(solvedCounts: [String: Int]) -> PuzzleCacheKey {
-        let fallback = PuzzleCacheKey(level: 1, blockCount: BoardPuzzle.defaultBlockCount, difficulty: .beginner)
+        let fallback = firstPuzzleKey() ??
+            PuzzleCacheKey(level: 1, blockCount: BoardPuzzle.defaultBlockCount, difficulty: .beginner)
         return highestUnlockedPuzzleKey(solvedCounts: solvedCounts) ?? fallback
     }
 
@@ -1731,7 +1953,7 @@ struct ContentView: View {
         var highestKey: PuzzleCacheKey?
         var highestLevel = 0
 
-        for level in 1...lastLevelNumber {
+        for level in availableLevelNumbers {
             guard
                 let key = puzzleKey(forLevel: level),
                 isUnlocked(key, solvedCounts: solvedCounts)
@@ -1749,31 +1971,32 @@ struct ContentView: View {
     }
 
     private static func puzzleKey(forLevel level: Int) -> PuzzleCacheKey? {
-        guard (1...lastLevelNumber).contains(level) else {
+        preparedPuzzleKeysByLevel[level]
+    }
+
+    private static func firstPuzzleKey() -> PuzzleCacheKey? {
+        availableLevelNumbers.first.flatMap { puzzleKey(forLevel: $0) }
+    }
+
+    private static func previousPuzzleKey(for key: PuzzleCacheKey) -> PuzzleCacheKey? {
+        guard let index = availableLevelNumbers.firstIndex(of: key.level), index > 0 else {
             return nil
         }
 
-        if level <= 64 {
-            let zeroBasedLevel = level - 1
-            let difficultyCount = PuzzleDifficulty.allCases.count
-            let blockCount = BoardPuzzle.blockCountRange.lowerBound + zeroBasedLevel / difficultyCount
-            let difficultyIndex = zeroBasedLevel % difficultyCount
+        return puzzleKey(forLevel: availableLevelNumbers[index - 1])
+    }
 
-            guard
-                let difficulty = PuzzleDifficulty.allCases.first(where: { $0.sortOrder == difficultyIndex }),
-                BoardPuzzle.blockCountRange.contains(blockCount)
-            else {
-                return nil
-            }
-
-            return PuzzleCacheKey(level: level, blockCount: blockCount, difficulty: difficulty)
+    private static func nextPuzzleKey(after key: PuzzleCacheKey) -> PuzzleCacheKey? {
+        guard let index = availableLevelNumbers.firstIndex(of: key.level) else {
+            return nil
         }
 
-        if level <= 100 {
-            return PuzzleCacheKey(level: level, blockCount: 18, difficulty: .advanced)
+        let nextIndex = availableLevelNumbers.index(after: index)
+        guard nextIndex < availableLevelNumbers.endIndex else {
+            return nil
         }
 
-        return PuzzleCacheKey(level: level, blockCount: 20, difficulty: .advanced)
+        return puzzleKey(forLevel: availableLevelNumbers[nextIndex])
     }
 
     private static func levelNumber(blockCount: Int, difficulty: PuzzleDifficulty) -> Int {
@@ -1785,7 +2008,7 @@ struct ContentView: View {
         _ key: PuzzleCacheKey,
         solvedCounts: [String: Int]
     ) -> Bool {
-        guard (1...lastLevelNumber).contains(key.level) else {
+        guard availableLevelNumbers.contains(key.level) else {
             return false
         }
 
@@ -1793,7 +2016,7 @@ struct ContentView: View {
             return true
         }
 
-        guard key.level > 1, let previousKey = puzzleKey(forLevel: key.level - 1) else {
+        guard let previousKey = previousPuzzleKey(for: key) else {
             return true
         }
 
@@ -1805,14 +2028,6 @@ struct ContentView: View {
     }
 
     private static func clearRequirementValue(for key: PuzzleCacheKey) -> Int {
-        if key.level >= 101 {
-            return 3
-        }
-
-        if key.level >= 65 {
-            return 3
-        }
-
         switch key.difficulty {
         case .beginner:
             return 1

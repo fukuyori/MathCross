@@ -7,11 +7,14 @@ MathCross is an iPad puzzle game built with SwiftUI. Players fill number and ope
 ## Features
 
 - 5-cell math blocks in horizontal and vertical layouts
-- Level progression from beginner through expert-style difficulty
-- Prepared puzzle catalog loaded from SQLite
+- Data-driven level progression loaded from the prepared puzzle catalog
+- Prepared puzzle catalog loaded from bundled SQLite data
 - Unique-solution puzzle data support
 - Clear counts and level unlock achievements
-- Confetti and sound feedback on completion
+- Hint points shown as heart marks, with confirmation before use
+- Number and operator cards, including high-difficulty operator-card puzzles
+- Wooden block visual style with placement feedback
+- Confetti, sound feedback, and a full-clear celebration image
 
 ## Requirements
 
@@ -37,7 +40,9 @@ The app reads bundled puzzle patterns from:
 MathCross/PreparedPuzzles.sqlite
 ```
 
-Text puzzle data can be imported from JSONL with the tools under `tools/`. Large generated JSONL files are treated as local intermediates and are ignored by Git.
+Text puzzle data can be imported from JSONL before bundling. Large generated JSONL files are treated as local intermediates and are ignored by Git.
+
+The app uses puzzle metadata from SQLite, including level number, board size, block count, difficulty, hidden number cells, hidden operator cells, answer cards, and operator cards. Level unlock requirements are controlled by difficulty rather than hardcoded level ranges.
 
 ## Repository
 
@@ -47,4 +52,4 @@ https://github.com/fukuyori/MathCross.git
 
 ## Version
 
-Current app version: `0.5.0`
+Current app version: `0.6.0`

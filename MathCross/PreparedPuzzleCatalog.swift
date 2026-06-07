@@ -10,6 +10,50 @@ struct PreparedPuzzleCatalog {
         databaseURL = bundle.url(forResource: "PreparedPuzzles", withExtension: "sqlite")
     }
 
+    func levelKeys() -> [PuzzleCacheKey] {
+        guard let databaseURL else {
+            return []
+        }
+
+        var database: OpaquePointer?
+        guard sqlite3_open_v2(databaseURL.path, &database, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {
+            sqlite3_close(database)
+            return []
+        }
+
+        defer {
+            sqlite3_close(database)
+        }
+
+        let sql = """
+            SELECT level, MIN(block_count), difficulty
+            FROM puzzles
+            GROUP BY level
+            ORDER BY level
+            """
+
+        var statement: OpaquePointer?
+        guard sqlite3_prepare_v2(database, sql, -1, &statement, nil) == SQLITE_OK else {
+            sqlite3_finalize(statement)
+            return []
+        }
+
+        defer {
+            sqlite3_finalize(statement)
+        }
+
+        var keys: [PuzzleCacheKey] = []
+        while sqlite3_step(statement) == SQLITE_ROW {
+            let level = Int(sqlite3_column_int(statement, 0))
+            let blockCount = Int(sqlite3_column_int(statement, 1))
+            let difficultyText = sqlite3_column_text(statement, 2).map { String(cString: $0) } ?? ""
+            let difficulty = PuzzleDifficulty(rawValue: difficultyText) ?? .advanced
+            keys.append(PuzzleCacheKey(level: level, blockCount: blockCount, difficulty: difficulty))
+        }
+
+        return keys
+    }
+
     func puzzle(for key: PuzzleCacheKey, excluding completedIDs: Set<Int>) -> (id: Int, puzzle: PlayablePuzzle)? {
         guard let databaseURL else {
             return nil
