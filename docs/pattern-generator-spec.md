@@ -1,8 +1,8 @@
-# MathCross Pattern Generator Spec
+# はめこみクロスマス Pattern Generator Spec
 
 ## Purpose
 
-MathCross runtime should not depend on expensive puzzle generation for normal play. A separate pattern generator creates validated puzzle patterns ahead of time and stores them in SQLite. The iOS app reads prepared patterns first and falls back to runtime generation only when a prepared pattern is unavailable.
+はめこみクロスマス runtime should not depend on expensive puzzle generation for normal play. A separate pattern generator creates validated puzzle patterns ahead of time and stores them in SQLite. The iOS app reads prepared patterns first and falls back to runtime generation only when a prepared pattern is unavailable.
 
 ## Level Model
 

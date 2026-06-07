@@ -1,8 +1,10 @@
-# MathCross
+# はめこみクロスマス
 
-MathCross is an iPad puzzle game built with SwiftUI. Players fill number and operator cards into crossing five-cell equations, with levels unlocked through clear counts.
+はめこみクロスマス is an iPad puzzle game built with SwiftUI. Players place number and operator blocks into crossing five-cell equations, with levels unlocked through clear counts.
 
-![MathCross screenshot](images/screenshot.png)
+The internal Xcode project, target, and repository still use the original `MathCross` name.
+
+![はめこみクロスマス screenshot](images/screenshot.png)
 
 ## Features
 
@@ -44,6 +46,11 @@ Text puzzle data can be imported from JSONL before bundling. Large generated JSO
 
 The app uses puzzle metadata from SQLite, including level number, board size, block count, difficulty, hidden number cells, hidden operator cells, answer cards, and operator cards. Level unlock requirements are controlled by difficulty rather than hardcoded level ranges.
 
+## Documents
+
+- [Store listing draft](docs/app-store-listing.md)
+- [Pattern generator spec](docs/pattern-generator-spec.md)
+
 ## Repository
 
 ```text
@@ -52,4 +59,4 @@ https://github.com/fukuyori/MathCross.git
 
 ## Version
 
-Current app version: `0.6.0`
+Current app version: `0.7.0`

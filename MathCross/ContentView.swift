@@ -34,7 +34,7 @@ struct ContentView: View {
     @State private var pendingHintTapWorkItem: DispatchWorkItem?
     @State private var snappingPlacedPoints: Set<GridPoint> = []
 
-    private let appVersion = "0.6.0"
+    private let appVersion = "0.7.0"
     private let cellSpacing: CGFloat = 2
     private let ink = Color(red: 0.12, green: 0.15, blue: 0.18)
     private let accent = Color(red: 0.04, green: 0.45, blue: 0.39)
@@ -494,8 +494,10 @@ struct ContentView: View {
     private var headerTitle: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text("MathCross")
+                Text("はめこみクロスマス")
                     .font(.system(size: 30, weight: .heavy, design: .rounded))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
                 Text("v\(appVersion)")
                     .font(.system(size: 13, weight: .heavy, design: .rounded).monospacedDigit())
                     .foregroundStyle(ink.opacity(0.58))
