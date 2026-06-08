@@ -1,5 +1,27 @@
 import Foundation
 
+enum L10n {
+    static var isEnglish: Bool {
+        Locale.current.language.languageCode?.identifier == "en"
+    }
+
+    static func text(_ key: String) -> String {
+        NSLocalizedString(key, comment: "")
+    }
+
+    static func format(_ key: String, _ arguments: CVarArg...) -> String {
+        String(
+            format: text(key),
+            locale: Locale.current,
+            arguments: arguments
+        )
+    }
+
+    static func imageName(_ baseName: String) -> String {
+        isEnglish ? "\(baseName)EN" : baseName
+    }
+}
+
 struct GridPoint: Hashable, Codable {
     let row: Int
     let column: Int
@@ -80,13 +102,13 @@ enum PuzzleDifficulty: String, CaseIterable, Identifiable, Codable {
     var title: String {
         switch self {
         case .beginner:
-            return "初級"
+            return L10n.text("difficulty.beginner")
         case .intermediate:
-            return "中級"
+            return L10n.text("difficulty.intermediate")
         case .advanced:
-            return "上級"
+            return L10n.text("difficulty.advanced")
         case .expert:
-            return "狂級"
+            return L10n.text("difficulty.expert")
         }
     }
 

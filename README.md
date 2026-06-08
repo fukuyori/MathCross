@@ -51,6 +51,10 @@ The app uses puzzle metadata from SQLite, including level number, board size, bl
 - [Store listing draft](docs/app-store-listing.md)
 - [Pattern generator spec](docs/pattern-generator-spec.md)
 
+## Localization
+
+The app currently supports Japanese (`ja`) and English (`en`) UI strings. The Japanese display name is `はめこみクロスマス`; the English display name is `Block CrossMath`.
+
 ## Repository
 
 ```text
@@ -59,4 +63,4 @@ https://github.com/fukuyori/MathCross.git
 
 ## Version
 
-Current app version: `0.7.0`
+Current app version: `0.7.1`

@@ -34,7 +34,7 @@ struct ContentView: View {
     @State private var pendingHintTapWorkItem: DispatchWorkItem?
     @State private var snappingPlacedPoints: Set<GridPoint> = []
 
-    private let appVersion = "0.7.0"
+    private let appVersion = "0.7.1"
     private let cellSpacing: CGFloat = 2
     private let ink = Color(red: 0.12, green: 0.15, blue: 0.18)
     private let accent = Color(red: 0.04, green: 0.45, blue: 0.39)
@@ -56,7 +56,9 @@ struct ContentView: View {
     private static let completedPuzzleIDsKey = "mathCross.completedPuzzleIDsByLevel"
     private static let hintPointsKey = "mathCross.hintPoints"
     private static let maximumHintPoints = 10
-    private static let grandClearMessage = "全レベルをクリアしました！"
+    private static var grandClearMessage: String {
+        L10n.text("grand.clear.message")
+    }
     private static let preparedPuzzleKeysByLevel: [Int: PuzzleCacheKey] = {
         let keys = PreparedPuzzleCatalog.shared.levelKeys()
         guard !keys.isEmpty else {
@@ -76,72 +78,9 @@ struct ContentView: View {
     private static var lastLevelNumber: Int {
         availableLevelNumbers.last ?? 1
     }
-    private static let encouragementMessages = [
-        "お疲れ様でございます",
-        "大変お疲れ様でした",
-        "ご苦労が偲ばれます",
-        "お骨折りいただきありがとうございます",
-        "ご尽力いただき感謝申し上げます",
-        "お力添えありがとうございました",
-        "お手数をおかけいたしました",
-        "ご面倒をおかけしました",
-        "ご助力を賜り、誠にありがとうございます",
-        "ひとかたならぬお世話になりました",
-        "ご功績に深く敬意を表します",
-        "ご活躍、心よりお慶び申し上げます",
-        "たゆまぬご努力に頭が下がる思いです",
-        "ご精励の賜物と存じます",
-        "ご研鑽の成果、感服いたしました",
-        "ご奮闘ぶり、頼もしく拝見しております",
-        "お見事なお働きでございました",
-        "並々ならぬご努力に敬服いたします",
-        "素晴らしいお仕事ぶりに感じ入っております",
-        "ご精勤の様子、誠に頭が下がります",
-        "ご多用の折、恐れ入ります",
-        "ご多忙の中、誠にありがとうございました",
-        "お忙しいところお手を煩わせました",
-        "何かとご多端の折、お気遣い痛み入ります",
-        "ご繁忙のところ恐縮に存じます",
-        "お取り込み中失礼いたしました",
-        "お忙しい中、お時間を割いていただき感謝いたします",
-        "ご公務ご多忙の折、痛み入ります",
-        "ご足労いただきありがとうございました",
-        "遠路はるばるお越しいただき恐縮です",
-        "長旅、さぞお疲れのことと存じます",
-        "お運びいただき誠に恐れ入ります",
-        "わざわざお越しいただき恐縮の至りです",
-        "道中お疲れではございませんでしたか",
-        "お疲れが出ませんよう、ご自愛ください",
-        "お身体おいといくださいませ",
-        "くれぐれもご無理なさいませんように",
-        "ご心労いかばかりかとお察し申し上げます",
-        "お疲れを癒されますように",
-        "ご健康を切にお祈り申し上げます",
-        "お休みになれましたでしょうか",
-        "ご静養くださいませ",
-        "お心遣い痛み入ります",
-        "過分なお気遣いを賜り恐縮です",
-        "ひとかたならぬご厚情に感謝いたします",
-        "ご懇情、終生忘れません",
-        "ご厚意のほど、深く御礼申し上げます",
-        "お引き立てを賜り、誠にありがとうございます",
-        "ご配慮いただき恐縮至極でございます",
-        "ご高配を賜り、厚く御礼申し上げます",
-        "さぞお骨折りのことでございましたでしょう",
-        "ひとかたならぬご苦労をおかけしました",
-        "ご苦心のほど、お察しいたします",
-        "ご心痛いかばかりかとお見舞い申し上げます",
-        "並々ならぬご労苦、頭が下がります",
-        "大変な中、よくぞやり遂げてくださいました",
-        "ご芳情のほど、肝に銘じます",
-        "ご鞭撻に深謝申し上げます",
-        "ひとえに皆様のおかげと存じます",
-        "ご薫陶の賜物でございます",
-        "ご恩情、深く心に刻んでおります",
-        "お導きいただき、誠にありがとうございました",
-        "お力添えのほど、終生忘れません",
-        "皆様のご支援の賜物と、心より御礼申し上げます"
-    ]
+    private static var encouragementMessages: [String] {
+        (1...12).map { L10n.text("encouragement.\($0)") }
+    }
 
     init() {
         let storedSolvedCounts = Self.loadSolvedCounts()
@@ -360,56 +299,56 @@ struct ContentView: View {
 
         }
         .alert(
-            "実績を調整しますか",
+            L10n.text("achievement.reset.title"),
             isPresented: $showResetAchievementsDialog,
         ) {
-            TextField("残すレベル", text: $resetAchievementLevelText)
+            TextField(L10n.text("achievement.reset.field"), text: $resetAchievementLevelText)
                 .keyboardType(.numberPad)
 
-            Button("実行", role: .destructive) {
+            Button(L10n.text("button.execute"), role: .destructive) {
                 resetAchievements(through: Int(resetAchievementLevelText) ?? 0)
             }
-            Button("キャンセル", role: .cancel) {}
+            Button(L10n.text("button.cancel"), role: .cancel) {}
         } message: {
-            Text("0または1なら全実績を消去します。60ならレベル60までをクリア済みにして、レベル60から始めます。")
+            Text(L10n.text("achievement.reset.message"))
         }
         .alert(
-            "ヒントを付与",
+            L10n.text("hint.grant.title"),
             isPresented: $showHintGrantDialog
         ) {
-            TextField("追加するヒント数", text: $hintGrantText)
+            TextField(L10n.text("hint.grant.field"), text: $hintGrantText)
                 .keyboardType(.numberPad)
 
-            Button("付与") {
+            Button(L10n.text("button.grant")) {
                 grantHintPoints()
             }
-            Button("キャンセル", role: .cancel) {}
+            Button(L10n.text("button.cancel"), role: .cancel) {}
         } message: {
-            Text("入力した数だけヒントポイントを追加します。")
+            Text(L10n.text("hint.grant.message"))
         }
         .alert(
-            "ヒントを使いますか",
+            L10n.text("hint.use.title"),
             isPresented: $showHintConfirmDialog
         ) {
-            Button("使う") {
+            Button(L10n.text("button.use")) {
                 revealRandomHint()
             }
-            Button("キャンセル", role: .cancel) {}
+            Button(L10n.text("button.cancel"), role: .cancel) {}
         } message: {
-            Text("ヒントポイントを1つ消費して、未入力の数字を1つ表示します。")
+            Text(L10n.text("hint.use.message"))
         }
         .alert(
-            "別のパターンに入れ替えますか",
+            L10n.text("replace.confirm.title"),
             isPresented: $showReplacePuzzleConfirmDialog
         ) {
-            Button("入れ替える", role: .destructive) {
+            Button(L10n.text("button.replace"), role: .destructive) {
                 withAnimation(.snappy) {
                     replacePuzzle(for: currentPuzzleKey)
                 }
             }
-            Button("キャンセル", role: .cancel) {}
+            Button(L10n.text("button.cancel"), role: .cancel) {}
         } message: {
-            Text("現在の入力内容は消えます。")
+            Text(L10n.text("replace.confirm.message"))
         }
     }
 
@@ -494,7 +433,7 @@ struct ContentView: View {
     private var headerTitle: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text("はめこみクロスマス")
+                Text(L10n.text("app.title"))
                     .font(.system(size: 30, weight: .heavy, design: .rounded))
                     .lineLimit(1)
                     .minimumScaleFactor(0.72)
@@ -512,10 +451,10 @@ struct ContentView: View {
                 resetAchievementLevelText = "\(currentLevelNumber)"
                 showResetAchievementsDialog = true
             }
-            Text("レベル \(currentLevelNumber) / \(boardSize)x\(boardSize) / \(blockCount)個 / \(difficulty.title)")
+            Text(L10n.format("header.level.detail", currentLevelNumber, boardSize, boardSize, blockCount, difficulty.title))
                 .font(.system(size: 15, weight: .semibold, design: .rounded))
                 .foregroundStyle(accent)
-            Text("正解数 \(currentSolvedCount)")
+            Text(L10n.format("header.clear.count", currentSolvedCount))
                 .font(.system(size: 14, weight: .bold, design: .rounded).monospacedDigit())
                 .foregroundStyle(ink.opacity(0.68))
             Text(unlockMessage ?? " ")
@@ -538,7 +477,7 @@ struct ContentView: View {
                     .foregroundStyle(ink)
                     .lineLimit(1)
                     .minimumScaleFactor(0.72)
-                Text("\(blockCount)個 \(difficulty.title)")
+                Text(L10n.format("header.block.difficulty", blockCount, difficulty.title))
                     .font(.system(size: 11, weight: .bold, design: .rounded))
                     .foregroundStyle(accent)
                     .lineLimit(1)
@@ -588,7 +527,7 @@ struct ContentView: View {
             Button {
                 showReplacePuzzleConfirmDialog = true
             } label: {
-                Label("再配置", systemImage: "arrow.clockwise")
+                Label(L10n.text("button.redeal"), systemImage: "arrow.clockwise")
                     .labelStyle(.iconOnly)
             }
             .buttonStyle(.borderedProminent)
@@ -604,7 +543,7 @@ struct ContentView: View {
 
         return VStack(spacing: 14) {
             if isGrandClear {
-                Image("GrandClearCelebration")
+                Image(L10n.imageName("GrandClearCelebration"))
                     .resizable()
                     .scaledToFit()
                     .clipShape(RoundedRectangle(cornerRadius: 10))
@@ -617,7 +556,7 @@ struct ContentView: View {
                     .font(.system(size: 30, weight: .bold))
                     .foregroundStyle(selectedAccent)
 
-                Text("アンロック")
+                Text(L10n.text("unlock.title"))
                     .font(.system(size: 18, weight: .heavy, design: .rounded))
                     .foregroundStyle(accent)
 
@@ -643,7 +582,7 @@ struct ContentView: View {
                 Button {
                     goToUnlockedPuzzle(nextKey)
                 } label: {
-                    Label(isGrandClear ? "レベル1へ" : "次のレベルへ", systemImage: "arrow.right.circle.fill")
+                    Label(isGrandClear ? L10n.text("button.to.level1") : L10n.text("button.next.level"), systemImage: "arrow.right.circle.fill")
                         .font(.system(size: 20, weight: .heavy, design: .rounded))
                         .frame(width: 240, height: 56)
                 }
@@ -668,11 +607,11 @@ struct ContentView: View {
 
     private var nextPuzzlePrompt: some View {
         VStack(spacing: 16) {
-            Text("クリア")
+            Text(L10n.text("clear.title"))
                 .font(.system(size: 28, weight: .heavy, design: .rounded))
                 .foregroundStyle(ink)
 
-            Text("レベル \(currentLevelNumber) / \(blockCount)個 / \(difficulty.title)")
+            Text(L10n.format("clear.level.detail", currentLevelNumber, blockCount, difficulty.title))
                 .font(.system(size: 16, weight: .bold, design: .rounded))
                 .foregroundStyle(accent)
 
@@ -687,7 +626,7 @@ struct ContentView: View {
                 Button {
                     goToUnlockedPuzzle(nextUnlockedPuzzleKey)
                 } label: {
-                    Label("次のレベルへ", systemImage: "arrow.right.circle.fill")
+                    Label(L10n.text("button.next.level"), systemImage: "arrow.right.circle.fill")
                         .font(.system(size: 20, weight: .heavy, design: .rounded))
                         .frame(width: 240, height: 56)
                 }
@@ -699,7 +638,7 @@ struct ContentView: View {
                 Button {
                     goToNextPuzzle()
                 } label: {
-                    Label("次のゲームへ", systemImage: "arrow.right.circle.fill")
+                    Label(L10n.text("button.next.game"), systemImage: "arrow.right.circle.fill")
                         .font(.system(size: 20, weight: .heavy, design: .rounded))
                         .frame(width: 220, height: 54)
                 }
@@ -1247,20 +1186,20 @@ struct ContentView: View {
     private func showUnlockMessage(for blockCount: Int, difficulty: PuzzleDifficulty) {
         withAnimation(.snappy) {
             let key = puzzleKey(forLevel: levelNumber(blockCount: blockCount, difficulty: difficulty))
-            unlockMessage = key.map(unlockRequirementText(for:)) ?? "このレベルは選択できません"
+            unlockMessage = key.map(unlockRequirementText(for:)) ?? L10n.text("level.unavailable")
         }
     }
 
     private func unlockRequirementText(for key: PuzzleCacheKey) -> String {
         guard let previousKey = previousPuzzleKey(for: key) else {
-            return "レベル \(key.level) はまだ解放されていません"
+            return L10n.format("level.locked", key.level)
         }
 
         let remaining = remainingClears(
             required: clearRequirement(for: previousKey),
             current: clearCount(for: previousKey)
         )
-        return "レベル \(key.level) はレベル \(previousKey.level) をあと\(remaining)回クリアで解放"
+        return L10n.format("level.unlock.requirement", key.level, previousKey.level, remaining)
     }
 
     private func clearRequirement(for key: PuzzleCacheKey) -> Int {
@@ -1281,7 +1220,7 @@ struct ContentView: View {
             return nil
         }
 
-        return "レベルアップまで残り\(remaining)回だよ"
+        return L10n.format("level.remaining", remaining)
     }
 
     private func clearCount(blockCount: Int, difficulty: PuzzleDifficulty) -> Int {
@@ -1313,10 +1252,10 @@ struct ContentView: View {
         }
 
         if sortedKeys.count == 1 {
-            return "レベル \(levelNumber(for: firstKey))"
+            return L10n.format("level.name", levelNumber(for: firstKey))
         }
 
-        return "レベル \(levelNumber(for: firstKey)) ほか\(sortedKeys.count - 1)件"
+        return L10n.format("level.name.more", levelNumber(for: firstKey), sortedKeys.count - 1)
     }
 
     private func sortedUnlockKeys(_ keys: Set<PuzzleCacheKey>) -> [PuzzleCacheKey] {
@@ -1453,7 +1392,7 @@ struct ContentView: View {
         }
 
         guard let preparedPuzzle = bundledPreparedPuzzle(for: key) else {
-            unlockMessage = "このレベルのパターンデータがありません"
+            unlockMessage = L10n.text("level.no.pattern")
             return
         }
 
