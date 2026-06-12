@@ -313,7 +313,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.7.1;
+				MARKETING_VERSION = 0.7.2;
 				PRODUCT_BUNDLE_IDENTIFIER = org.spumoni.mathcross;
 				PRODUCT_NAME = "はめこみクロスマス";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -343,7 +343,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.7.1;
+				MARKETING_VERSION = 0.7.2;
 				PRODUCT_BUNDLE_IDENTIFIER = org.spumoni.mathcross;
 				PRODUCT_NAME = "はめこみクロスマス";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";

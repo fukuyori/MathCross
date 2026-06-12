@@ -2,7 +2,7 @@
 
 ## Purpose
 
-はめこみクロスマス runtime should not depend on expensive puzzle generation for normal play. A separate pattern generator creates validated puzzle patterns ahead of time and stores them in SQLite. The iOS app reads prepared patterns first and falls back to runtime generation only when a prepared pattern is unavailable.
+はめこみクロスマス runtime should not depend on expensive puzzle generation for normal play. A separate pattern generator creates validated puzzle patterns ahead of time and stores them in SQLite. The iOS app reads prepared patterns as a player and does not generate puzzles during normal play.
 
 ## Level Model
 
@@ -123,9 +123,9 @@ When the app needs a puzzle:
 1. Look up bundled SQLite patterns for the requested level.
 2. Use a pattern that has not been used in the current app session.
 3. If all bundled patterns for the level have been used, allow reuse.
-4. If no bundled pattern exists, use the existing runtime generation fallback.
+4. If no bundled pattern exists, show the unavailable state instead of generating a puzzle at runtime.
 
-Runtime background generation remains useful only as a fallback for missing SQLite coverage.
+The app is intended to behave as a prepared-puzzle player. Pattern generation is handled outside the app and imported into SQLite before bundling.
 
 ## Versioning
 

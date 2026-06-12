@@ -34,7 +34,7 @@ struct ContentView: View {
     @State private var pendingHintTapWorkItem: DispatchWorkItem?
     @State private var snappingPlacedPoints: Set<GridPoint> = []
 
-    private let appVersion = "0.7.1"
+    private let appVersion = "0.7.2"
     private let cellSpacing: CGFloat = 2
     private let ink = Color(red: 0.12, green: 0.15, blue: 0.18)
     private let accent = Color(red: 0.04, green: 0.45, blue: 0.39)
@@ -240,21 +240,41 @@ struct ContentView: View {
                 let horizontalPadding = max(8, min(18, geometry.size.width * 0.014))
                 let verticalPadding = max(8, min(16, geometry.size.height * 0.010))
                 let contentSpacing = max(8, min(14, 10 * layoutScale))
-                let cardSpacing = max(8, min(12, 10 * layoutScale))
-                let trayPadding = max(8, min(12, 10 * layoutScale))
+                let totalCardCount = puzzle.answerCards.count + puzzle.operatorCards.count
+                let cardSpacing = max(6, min(12, totalCardCount >= 28 ? 8 * layoutScale : 10 * layoutScale))
+                let trayPadding = max(6, min(12, totalCardCount >= 28 ? 8 * layoutScale : 10 * layoutScale))
                 let maximumContentWidth = geometry.size.width - horizontalPadding * 2
                 let contentWidth = min(maximumContentWidth, 790 * layoutScale)
                 let headerReservedHeight = max(92, 98 * layoutScale)
-                let estimatedCardSide = max(50, min(72, contentWidth / 10.4))
-                let cardsPerRow = max(Int((contentWidth - trayPadding * 2 + cardSpacing) / (estimatedCardSide + cardSpacing)), 1)
-                let cardSide = max(
-                    48,
+                let targetCardRows: Int = {
+                    if totalCardCount >= 25 {
+                        return 3
+                    }
+                    if totalCardCount >= 13 {
+                        return 2
+                    }
+                    return 1
+                }()
+                let targetCardsPerRow = max(Int(ceil(Double(totalCardCount) / Double(targetCardRows))), 1)
+                let cardSizeRange: ClosedRange<CGFloat> = totalCardCount >= 25 ? 46...58 : 52...72
+                let estimatedCardSide = max(
+                    cardSizeRange.lowerBound,
                     min(
-                        72,
+                        cardSizeRange.upperBound,
+                        (contentWidth - trayPadding * 2 - CGFloat(targetCardsPerRow - 1) * cardSpacing) / CGFloat(targetCardsPerRow)
+                    )
+                )
+                let cardsPerRow = max(
+                    targetCardsPerRow,
+                    Int((contentWidth - trayPadding * 2 + cardSpacing) / (estimatedCardSide + cardSpacing))
+                )
+                let cardSide = max(
+                    cardSizeRange.lowerBound,
+                    min(
+                        cardSizeRange.upperBound,
                         (contentWidth - trayPadding * 2 - CGFloat(cardsPerRow - 1) * cardSpacing) / CGFloat(cardsPerRow)
                     )
                 )
-                let totalCardCount = puzzle.answerCards.count + puzzle.operatorCards.count
                 let cardRows = CGFloat((totalCardCount + cardsPerRow - 1) / cardsPerRow)
                 let trayHeight = cardRows * cardSide + max(cardRows - 1, 0) * cardSpacing + trayPadding * 2
                 let reservedHeight = headerReservedHeight + trayHeight + contentSpacing * 2 + verticalPadding * 2
@@ -269,7 +289,7 @@ struct ContentView: View {
 
                     board(side: side)
 
-                    cardTray(width: side + 12, cardSide: cardSide, spacing: cardSpacing, padding: trayPadding)
+                    cardTray(width: contentWidth, cardSide: cardSide, spacing: cardSpacing, padding: trayPadding)
                 }
                 .frame(width: geometry.size.width, height: geometry.size.height, alignment: .top)
                 .padding(.horizontal, horizontalPadding)

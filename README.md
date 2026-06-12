@@ -16,6 +16,7 @@ The internal Xcode project, target, and repository still use the original `MathC
 - Hint points shown as heart marks, with confirmation before use
 - Number and operator cards, including high-difficulty operator-card puzzles
 - Wooden block visual style with placement feedback
+- Adaptive board and card tray layout for large high-level puzzles
 - Confetti, sound feedback, and a full-clear celebration image
 
 ## Requirements
@@ -46,6 +47,8 @@ Text puzzle data can be imported from JSONL before bundling. Large generated JSO
 
 The app uses puzzle metadata from SQLite, including level number, board size, block count, difficulty, hidden number cells, hidden operator cells, answer cards, and operator cards. Level unlock requirements are controlled by difficulty rather than hardcoded level ranges.
 
+For large boards and high-card-count levels, the card tray adapts to the available screen width and targets a compact multi-row layout so answer cards remain visible without overwhelming the board.
+
 ## Documents
 
 - [Store listing draft](docs/app-store-listing.md)
@@ -63,4 +66,4 @@ https://github.com/fukuyori/MathCross.git
 
 ## Version
 
-Current app version: `0.7.1`
+Current app version: `0.7.2`
