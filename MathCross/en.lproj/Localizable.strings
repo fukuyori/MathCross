@@ -1,0 +1,70 @@
+"app.title" = "Block CrossMath";
+"grand.clear.message" = "You cleared every level!";
+
+"difficulty.beginner" = "Beginner";
+"difficulty.intermediate" = "Intermediate";
+"difficulty.advanced" = "Advanced";
+"difficulty.expert" = "Expert";
+
+"achievement.reset.title" = "Adjust achievements?";
+"achievement.reset.field" = "Level to keep";
+"achievement.reset.message" = "Enter 0 or 1 to clear all achievements. Enter 60 to mark levels through 60 as cleared and start from level 60.";
+
+"hint.use.title" = "Use a hint?";
+"hint.use.message" = "Spend 1 hint point to softly reveal one empty number cell.";
+
+"replace.confirm.title" = "Switch to another puzzle?";
+"replace.confirm.message" = "Your current entries will be cleared.";
+
+"button.execute" = "Run";
+"button.cancel" = "Cancel";
+"button.use" = "Use";
+"button.replace" = "Switch";
+"button.redeal" = "Redeal";
+"button.close" = "Close";
+"button.sound.on" = "Turn Sound On";
+"button.sound.off" = "Turn Sound Off";
+"button.to.level1" = "To Level 1";
+"button.next.level" = "Next Level";
+"button.next.game" = "Next Game";
+
+"howto.title" = "How to Play";
+"howto.rule.title" = "Fill the numbers";
+"howto.rule.body" = "Place numbers and operators in the empty cells so every vertical and horizontal equation is correct. Clear the puzzle by making all formulas work.";
+"howto.clear.title" = "Clearing levels";
+"howto.clear.body" = "Beginner levels need 1 correct clear, Intermediate needs 2, and Advanced or Expert needs 3.";
+"howto.level.move.title" = "Move levels";
+"howto.level.move.body" = "To move to any level, double-tap the game name in the upper left, then enter the level you want.";
+"howto.replace.title" = "Change puzzles";
+"howto.replace.body" = "Tap the circular arrow button in the upper right to switch to another puzzle at the same level. Your current entries will be cleared.";
+"howto.hint.title" = "Using hints";
+"howto.hint.body" = "Spend 1 heart to reveal the answer for one empty number cell. Tap the heart display to open the confirmation.";
+
+"header.level.detail" = "Level %lld / %lldx%lld / %lld blocks / %@";
+"header.clear.count" = "Clears %lld";
+"header.block.difficulty" = "%lld blocks %@";
+"header.clear.progress" = "Clears %lld of %lld required";
+"unlock.title" = "Unlocked";
+"clear.title" = "Clear";
+"clear.level.detail" = "Level %lld / %lld blocks / %@";
+
+"level.unavailable" = "This level cannot be selected";
+"level.locked" = "Level %lld is still locked";
+"level.unlock.requirement" = "Level %lld unlocks after Level %lld is cleared %lld more time(s)";
+"level.remaining" = "%lld more clear(s) to level up";
+"level.name" = "Level %lld";
+"level.name.more" = "Level %lld and %lld more";
+"level.no.pattern" = "No puzzle data is available for this level";
+
+"encouragement.1" = "Excellent work.";
+"encouragement.2" = "Well done.";
+"encouragement.3" = "Great effort.";
+"encouragement.4" = "That was a clean solve.";
+"encouragement.5" = "Impressive focus.";
+"encouragement.6" = "Nicely reasoned.";
+"encouragement.7" = "You made it through.";
+"encouragement.8" = "A solid achievement.";
+"encouragement.9" = "Great progress.";
+"encouragement.10" = "Sharp thinking.";
+"encouragement.11" = "You handled it well.";
+"encouragement.12" = "That was nicely done.";

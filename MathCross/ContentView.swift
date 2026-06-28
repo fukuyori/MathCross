@@ -12,6 +12,7 @@ struct ContentView: View {
     @State private var selectedCardIndex: Int?
     @State private var selectedOperatorCardIndex: Int?
     @State private var hintPoints: Int
+    @State private var isSoundEnabled: Bool
     @State private var hintedNumberPoints: Set<GridPoint> = []
     @State private var showConfetti = false
     @State private var celebrationID = 0
@@ -27,14 +28,12 @@ struct ContentView: View {
     @State private var showNextPuzzleButton = false
     @State private var showResetAchievementsDialog = false
     @State private var resetAchievementLevelText = ""
-    @State private var showHintGrantDialog = false
     @State private var showHintConfirmDialog = false
     @State private var showReplacePuzzleConfirmDialog = false
-    @State private var hintGrantText = ""
-    @State private var pendingHintTapWorkItem: DispatchWorkItem?
+    @State private var showHowToPlaySheet = false
     @State private var snappingPlacedPoints: Set<GridPoint> = []
 
-    private let appVersion = "0.7.2"
+    private let appVersion = "0.8.0"
     private let cellSpacing: CGFloat = 2
     private let ink = Color(red: 0.12, green: 0.15, blue: 0.18)
     private let accent = Color(red: 0.04, green: 0.45, blue: 0.39)
@@ -55,6 +54,7 @@ struct ContentView: View {
     private static let currentLevelKey = "mathCross.currentLevel"
     private static let completedPuzzleIDsKey = "mathCross.completedPuzzleIDsByLevel"
     private static let hintPointsKey = "mathCross.hintPoints"
+    private static let soundEnabledKey = "mathCross.soundEnabled"
     private static let maximumHintPoints = 10
     private static var grandClearMessage: String {
         L10n.text("grand.clear.message")
@@ -99,6 +99,7 @@ struct ContentView: View {
         _completedPuzzleIDs = State(initialValue: storedCompletedPuzzleIDs)
         _currentPreparedPuzzleID = State(initialValue: initialPuzzle.puzzleID)
         _hintPoints = State(initialValue: Self.loadHintPoints())
+        _isSoundEnabled = State(initialValue: Self.loadSoundEnabled())
     }
 
     private var boardSize: Int {
@@ -107,6 +108,10 @@ struct ContentView: View {
 
     private var currentSolvedCount: Int {
         clearCount(for: currentPuzzleKey)
+    }
+
+    private var currentClearRequirement: Int {
+        clearRequirement(for: currentPuzzleKey)
     }
 
     private var currentLevelNumber: Int {
@@ -291,7 +296,11 @@ struct ContentView: View {
 
                     cardTray(width: contentWidth, cardSide: cardSide, spacing: cardSpacing, padding: trayPadding)
                 }
-                .frame(width: geometry.size.width, height: geometry.size.height, alignment: .top)
+                .frame(
+                    width: maximumContentWidth,
+                    height: geometry.size.height - verticalPadding * 2,
+                    alignment: .top
+                )
                 .padding(.horizontal, horizontalPadding)
                 .padding(.vertical, verticalPadding)
                 .clipped()
@@ -333,20 +342,6 @@ struct ContentView: View {
             Text(L10n.text("achievement.reset.message"))
         }
         .alert(
-            L10n.text("hint.grant.title"),
-            isPresented: $showHintGrantDialog
-        ) {
-            TextField(L10n.text("hint.grant.field"), text: $hintGrantText)
-                .keyboardType(.numberPad)
-
-            Button(L10n.text("button.grant")) {
-                grantHintPoints()
-            }
-            Button(L10n.text("button.cancel"), role: .cancel) {}
-        } message: {
-            Text(L10n.text("hint.grant.message"))
-        }
-        .alert(
             L10n.text("hint.use.title"),
             isPresented: $showHintConfirmDialog
         ) {
@@ -369,6 +364,9 @@ struct ContentView: View {
             Button(L10n.text("button.cancel"), role: .cancel) {}
         } message: {
             Text(L10n.text("replace.confirm.message"))
+        }
+        .sheet(isPresented: $showHowToPlaySheet) {
+            howToPlaySheet
         }
     }
 
@@ -424,19 +422,23 @@ struct ContentView: View {
     }
 
     private var header: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: 16) {
-                headerTitle
+        HStack(spacing: 12) {
+            headerTitle
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .layoutPriority(0)
 
-                Spacer()
+            Spacer(minLength: 10)
 
-                headerControls
+            HStack(spacing: 14) {
+                levelBadge
+                    .layoutPriority(1)
+
+                headerActionControls
+                    .layoutPriority(1)
             }
-
-            VStack(alignment: .leading, spacing: 14) {
-                headerTitle
-                headerControls
-            }
+            .padding(.trailing, 24)
+            .fixedSize(horizontal: true, vertical: false)
+            .layoutPriority(1)
         }
         .frame(maxWidth: .infinity)
         .padding(.horizontal, 12)
@@ -488,32 +490,61 @@ struct ContentView: View {
 
     private var headerControls: some View {
         HStack(spacing: 14) {
-            VStack(spacing: 1) {
+            levelBadge
+            headerActionControls
+        }
+    }
+
+    private var levelBadge: some View {
+        VStack(spacing: 4) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text("LEVEL")
-                    .font(.system(size: 11, weight: .heavy, design: .rounded))
+                    .font(.system(size: 10, weight: .heavy, design: .rounded))
                     .foregroundStyle(ink.opacity(0.54))
                 Text("\(currentLevelNumber)")
-                    .font(.system(size: 27, weight: .heavy, design: .rounded).monospacedDigit())
+                    .font(.system(size: 32, weight: .heavy, design: .rounded).monospacedDigit())
                     .foregroundStyle(ink)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.72)
-                Text(L10n.format("header.block.difficulty", blockCount, difficulty.title))
-                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                    .minimumScaleFactor(0.76)
+            }
+            .frame(maxWidth: .infinity, alignment: .center)
+
+            HStack(spacing: 6) {
+                Text(difficulty.title)
+                    .font(.system(size: 12, weight: .heavy, design: .rounded))
                     .foregroundStyle(accent)
                     .lineLimit(1)
                     .minimumScaleFactor(0.72)
+                levelClearProgress
             }
-            .frame(width: 112, height: 60)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 6)
-            .background(Color.white.opacity(0.94))
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-            .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(Color.white.opacity(0.55), lineWidth: 1)
-            )
-            .fixedSize(horizontal: true, vertical: false)
+            .frame(maxWidth: .infinity, alignment: .center)
+        }
+        .frame(width: 96, height: 62)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 6)
+        .background(Color.white.opacity(0.94))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color.white.opacity(0.55), lineWidth: 1)
+        )
+        .fixedSize(horizontal: true, vertical: false)
+    }
 
+    private var levelClearProgress: some View {
+        HStack(spacing: 4) {
+            ForEach(0..<currentClearRequirement, id: \.self) { index in
+                Image(systemName: index < min(currentSolvedCount, currentClearRequirement) ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 13, weight: .heavy))
+                    .foregroundStyle(index < min(currentSolvedCount, currentClearRequirement) ? accent : ink.opacity(0.20))
+                    .frame(width: 13, height: 13)
+            }
+        }
+        .accessibilityLabel(L10n.format("header.clear.progress", currentSolvedCount, currentClearRequirement))
+    }
+
+    private var headerActionControls: some View {
+        HStack(spacing: 12) {
             VStack(spacing: 3) {
                 ForEach(0..<2, id: \.self) { row in
                     HStack(spacing: 3) {
@@ -527,7 +558,7 @@ struct ContentView: View {
                     }
                 }
             }
-            .frame(width: 86, height: 50)
+            .frame(width: 78, height: 50)
             .background(Color.white.opacity(0.94))
             .clipShape(RoundedRectangle(cornerRadius: 8))
             .overlay(
@@ -537,24 +568,332 @@ struct ContentView: View {
             .shadow(color: ink.opacity(0.12), radius: 6, y: 3)
             .opacity(hintPoints <= 0 ? 0.62 : 1)
             .contentShape(Rectangle())
-            .onTapGesture(count: 2) {
-                handleHintDoubleTap()
-            }
             .onTapGesture {
-                handleHintSingleTap()
+                requestRandomHint()
             }
 
-            Button {
-                showReplacePuzzleConfirmDialog = true
-            } label: {
-                Label(L10n.text("button.redeal"), systemImage: "arrow.clockwise")
-                    .labelStyle(.iconOnly)
+            HStack(spacing: 8) {
+                headerIconButton(
+                    systemImage: isSoundEnabled ? "speaker.wave.2.fill" : "speaker.slash.fill",
+                    background: Color.white.opacity(0.92),
+                    accessibilityLabel: L10n.text(isSoundEnabled ? "button.sound.off" : "button.sound.on")
+                ) {
+                    toggleSound()
+                }
+
+                headerIconButton(
+                    systemImage: "arrow.clockwise",
+                    background: Color(red: 0.95, green: 0.72, blue: 0.24),
+                    accessibilityLabel: L10n.text("button.redeal")
+                ) {
+                    showReplacePuzzleConfirmDialog = true
+                }
+
+                Button {
+                    showHowToPlaySheet = true
+                } label: {
+                    Text("?")
+                        .font(.system(size: 24, weight: .heavy, design: .rounded))
+                        .frame(width: 50, height: 50)
+                        .background(Color.white.opacity(0.92))
+                        .clipShape(Circle())
+                        .shadow(color: ink.opacity(0.12), radius: 6, y: 3)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(ink)
+                .accessibilityLabel(L10n.text("howto.title"))
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
-            .tint(Color(red: 0.95, green: 0.72, blue: 0.24))
-            .foregroundStyle(ink)
-            .frame(width: 50, height: 50)
+            .fixedSize(horizontal: true, vertical: false)
+        }
+        .fixedSize(horizontal: true, vertical: false)
+    }
+
+    private func headerIconButton(
+        systemImage: String,
+        background: Color,
+        accessibilityLabel: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.system(size: 22, weight: .heavy))
+                .frame(width: 50, height: 50)
+                .background(background)
+                .clipShape(Circle())
+                .shadow(color: ink.opacity(0.12), radius: 6, y: 3)
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(ink)
+        .accessibilityLabel(accessibilityLabel)
+    }
+
+    private var howToPlaySheet: some View {
+        NavigationStack {
+            GeometryReader { geometry in
+                TabView {
+                    howToPlayPage(
+                        title: L10n.text("howto.rule.title"),
+                        body: L10n.text("howto.rule.body"),
+                        availableHeight: geometry.size.height
+                    ) {
+                        howToPlayEquationIllustration
+                    }
+
+                    howToPlayPage(
+                        title: L10n.text("howto.clear.title"),
+                        body: L10n.text("howto.clear.body"),
+                        availableHeight: geometry.size.height
+                    ) {
+                        howToPlayClearIllustration
+                    }
+
+                    howToPlayPage(
+                        title: L10n.text("howto.level.move.title"),
+                        body: L10n.text("howto.level.move.body"),
+                        availableHeight: geometry.size.height
+                    ) {
+                        howToPlayLevelMoveIllustration
+                    }
+
+                    howToPlayPage(
+                        title: L10n.text("howto.replace.title"),
+                        body: L10n.text("howto.replace.body"),
+                        availableHeight: geometry.size.height
+                    ) {
+                        howToPlayReplaceIllustration
+                    }
+
+                    howToPlayPage(
+                        title: L10n.text("howto.hint.title"),
+                        body: L10n.text("howto.hint.body"),
+                        availableHeight: geometry.size.height
+                    ) {
+                        howToPlayHintIllustration
+                    }
+                }
+                .tabViewStyle(.page(indexDisplayMode: .always))
+            }
+            .background(panelBackground)
+            .navigationTitle(L10n.text("howto.title"))
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(L10n.text("button.close")) {
+                        showHowToPlaySheet = false
+                    }
+                }
+            }
+        }
+    }
+
+    private func howToPlayPage<Illustration: View>(
+        title: String,
+        body: String,
+        availableHeight: CGFloat,
+        @ViewBuilder illustration: () -> Illustration
+    ) -> some View {
+        ScrollView {
+            VStack(spacing: 18) {
+                illustration()
+                    .frame(maxWidth: .infinity)
+                    .frame(height: min(300, max(180, availableHeight * 0.42)))
+
+                VStack(alignment: .leading, spacing: 10) {
+                    Text(title)
+                        .font(.system(size: 25, weight: .heavy, design: .rounded))
+                        .foregroundStyle(ink)
+                    Text(body)
+                        .font(.system(size: 18, weight: .semibold, design: .rounded))
+                        .foregroundStyle(ink.opacity(0.76))
+                        .lineSpacing(3)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(18)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.white.opacity(0.84))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(Color.white.opacity(0.62), lineWidth: 1)
+                )
+            }
+            .padding(.horizontal, 28)
+            .padding(.top, 24)
+            .padding(.bottom, 58)
+        }
+    }
+
+    private var howToPlayEquationIllustration: some View {
+        VStack(spacing: 14) {
+            HStack(spacing: 8) {
+                howToPlayCell("3", highlighted: true)
+                howToPlayCell("+", highlighted: false)
+                howToPlayCell("4", highlighted: true)
+                howToPlayCell("=", highlighted: false)
+                howToPlayCell("7", highlighted: false)
+            }
+
+            HStack(spacing: 8) {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 26, weight: .bold))
+                    .foregroundStyle(accent)
+                Text("3 + 4 = 7")
+                    .font(.system(size: 24, weight: .heavy, design: .rounded).monospacedDigit())
+                    .foregroundStyle(ink)
+            }
+        }
+        .padding(22)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.white.opacity(0.82))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+
+    private var howToPlayClearIllustration: some View {
+        HStack(spacing: 14) {
+            howToPlayClearBadge(title: L10n.text("difficulty.beginner"), count: 1)
+            howToPlayClearBadge(title: L10n.text("difficulty.intermediate"), count: 2)
+            howToPlayClearBadge(title: L10n.text("difficulty.advanced"), count: 3)
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.white.opacity(0.82))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+
+    private var howToPlayLevelMoveIllustration: some View {
+        VStack(spacing: 16) {
+            Text(L10n.text("app.title"))
+                .font(.system(size: 26, weight: .heavy, design: .rounded))
+                .foregroundStyle(ink)
+                .padding(.horizontal, 18)
+                .padding(.vertical, 10)
+                .background(Color.white.opacity(0.84))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(selectedAccent, lineWidth: 3)
+                )
+
+            HStack(spacing: 18) {
+                Image(systemName: "hand.tap.fill")
+                Text("2x")
+                    .font(.system(size: 24, weight: .heavy, design: .rounded))
+                Image(systemName: "arrow.right")
+                Text("LEVEL 60")
+                    .font(.system(size: 21, weight: .heavy, design: .rounded).monospacedDigit())
+            }
+            .font(.system(size: 24, weight: .bold))
+            .foregroundStyle(accent)
+        }
+        .padding(22)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.white.opacity(0.82))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+
+    private var howToPlayReplaceIllustration: some View {
+        HStack(spacing: 22) {
+            VStack(spacing: 8) {
+                howToPlayMiniBoard(marked: false)
+                Text("A")
+                    .font(.system(size: 18, weight: .heavy, design: .rounded))
+                    .foregroundStyle(ink.opacity(0.64))
+            }
+
+            Image(systemName: "arrow.clockwise.circle.fill")
+                .font(.system(size: 54, weight: .bold))
+                .foregroundStyle(selectedAccent)
+
+            VStack(spacing: 8) {
+                howToPlayMiniBoard(marked: true)
+                Text("B")
+                    .font(.system(size: 18, weight: .heavy, design: .rounded))
+                    .foregroundStyle(ink.opacity(0.64))
+            }
+        }
+        .padding(22)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.white.opacity(0.82))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+
+    private var howToPlayHintIllustration: some View {
+        VStack(spacing: 14) {
+            HStack(spacing: 6) {
+                ForEach(0..<5, id: \.self) { index in
+                    Image(systemName: index == 0 ? "heart.fill" : "heart")
+                        .font(.system(size: 28, weight: .heavy))
+                        .foregroundStyle(index == 0 ? heartAccent : ink.opacity(0.22))
+                }
+            }
+
+            Image(systemName: "arrow.down")
+                .font(.system(size: 26, weight: .heavy))
+                .foregroundStyle(accent)
+
+            HStack(spacing: 8) {
+                howToPlayCell("?", highlighted: true)
+                Image(systemName: "arrow.right")
+                    .font(.system(size: 22, weight: .bold))
+                    .foregroundStyle(accent)
+                howToPlayCell("5", highlighted: false)
+            }
+        }
+        .padding(22)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.white.opacity(0.82))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+
+    private func howToPlayCell(_ text: String, highlighted: Bool) -> some View {
+        Text(text)
+            .font(.system(size: 28, weight: .heavy, design: .rounded).monospacedDigit())
+            .foregroundStyle(highlighted ? accent : ink)
+            .frame(width: 54, height: 54)
+            .background(highlighted ? selectedAccent.opacity(0.28) : Color.white.opacity(0.88))
+            .clipShape(RoundedRectangle(cornerRadius: 7))
+            .overlay(
+                RoundedRectangle(cornerRadius: 7)
+                    .stroke(ink.opacity(0.18), lineWidth: 1)
+            )
+    }
+
+    private func howToPlayClearBadge(title: String, count: Int) -> some View {
+        VStack(spacing: 9) {
+            Text(title)
+                .font(.system(size: 14, weight: .heavy, design: .rounded))
+                .foregroundStyle(ink.opacity(0.72))
+                .lineLimit(1)
+                .minimumScaleFactor(0.65)
+            HStack(spacing: 3) {
+                ForEach(0..<3, id: \.self) { index in
+                    Image(systemName: index < count ? "checkmark.circle.fill" : "circle")
+                        .font(.system(size: 17, weight: .bold))
+                        .foregroundStyle(index < count ? accent : ink.opacity(0.2))
+                }
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 14)
+        .frame(maxWidth: .infinity)
+        .background(Color.white.opacity(0.82))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+
+    private func howToPlayMiniBoard(marked: Bool) -> some View {
+        VStack(spacing: 4) {
+            ForEach(0..<3, id: \.self) { row in
+                HStack(spacing: 4) {
+                    ForEach(0..<3, id: \.self) { column in
+                        RoundedRectangle(cornerRadius: 5)
+                            .fill((marked && row == column) ? selectedAccent.opacity(0.48) : Color.white.opacity(0.86))
+                            .frame(width: 27, height: 27)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 5)
+                                    .stroke(ink.opacity(0.16), lineWidth: 1)
+                            )
+                    }
+                }
+            }
         }
     }
 
@@ -862,6 +1201,14 @@ struct ContentView: View {
         return ZStack {
             RoundedRectangle(cornerRadius: 4)
                 .fill(cellFill(block: block, point: point, content: content, hasPlacedValue: hasPlacedValue))
+                .overlay(
+                    blockBevelOverlay(
+                        cornerRadius: 4,
+                        isActive: block != nil,
+                        highlightOpacity: hasPlacedValue ? 0.42 : 0.34,
+                        shadowOpacity: hasPlacedValue ? 0.22 : 0.17
+                    )
+                )
                 .shadow(
                     color: cellShadow(
                         block: block,
@@ -869,9 +1216,9 @@ struct ContentView: View {
                         hasPlacedValue: hasPlacedValue,
                         isFloatingPlacedValue: isFloatingPlacedValue
                     ),
-                    radius: isFloatingPlacedValue ? 13 : 3,
+                    radius: isFloatingPlacedValue ? 14 : 4,
                     x: 0,
-                    y: isFloatingPlacedValue ? 12 : 2
+                    y: isFloatingPlacedValue ? 12 : 3
                 )
 
             if block != nil {
@@ -1124,6 +1471,14 @@ struct ContentView: View {
         ZStack {
             RoundedRectangle(cornerRadius: cornerRadius)
                 .fill(cardFillStyle(isUsed: isUsed, isSelected: isSelected))
+                .overlay(
+                    blockBevelOverlay(
+                        cornerRadius: cornerRadius,
+                        isActive: !isUsed,
+                        highlightOpacity: isSelected ? 0.52 : 0.44,
+                        shadowOpacity: isSelected ? 0.28 : 0.22
+                    )
+                )
 
             if !isUsed {
                 woodGrainOverlay(cornerRadius: cornerRadius, opacity: isSelected ? 0.34 : 0.26)
@@ -1135,7 +1490,44 @@ struct ContentView: View {
                 .padding(1.3)
         )
         .shadow(color: Color.white.opacity(isUsed ? 0 : 0.42), radius: 1, x: -1, y: -1)
-        .shadow(color: ink.opacity(isUsed ? 0 : 0.24), radius: 5, x: 0, y: 4)
+        .shadow(color: ink.opacity(isUsed ? 0 : 0.30), radius: 7, x: 0, y: 5)
+    }
+
+    private func blockBevelOverlay(
+        cornerRadius: CGFloat,
+        isActive: Bool,
+        highlightOpacity: Double,
+        shadowOpacity: Double
+    ) -> some View {
+        RoundedRectangle(cornerRadius: cornerRadius)
+            .strokeBorder(
+                LinearGradient(
+                    colors: [
+                        Color.white.opacity(isActive ? highlightOpacity : 0),
+                        Color.white.opacity(isActive ? highlightOpacity * 0.30 : 0),
+                        ink.opacity(isActive ? shadowOpacity : 0)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                ),
+                lineWidth: 2
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: max(cornerRadius - 1, 1))
+                    .strokeBorder(
+                        LinearGradient(
+                            colors: [
+                                Color.white.opacity(isActive ? highlightOpacity * 0.30 : 0),
+                                Color.clear,
+                                ink.opacity(isActive ? shadowOpacity * 0.45 : 0)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 1
+                    )
+                    .padding(2)
+            )
     }
 
     private func cardFillStyle(isUsed: Bool, isSelected: Bool = false) -> AnyShapeStyle {
@@ -1498,38 +1890,6 @@ struct ContentView: View {
         }
     }
 
-    private func handleHintSingleTap() {
-        pendingHintTapWorkItem?.cancel()
-        let workItem = DispatchWorkItem {
-            requestRandomHint()
-            pendingHintTapWorkItem = nil
-        }
-        pendingHintTapWorkItem = workItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.24, execute: workItem)
-    }
-
-    private func handleHintDoubleTap() {
-        pendingHintTapWorkItem?.cancel()
-        pendingHintTapWorkItem = nil
-        openHintGrantDialog()
-    }
-
-    private func openHintGrantDialog() {
-        hintGrantText = ""
-        showHintGrantDialog = true
-    }
-
-    private func grantHintPoints() {
-        guard let addedPoints = Int(hintGrantText), addedPoints > 0 else {
-            hintGrantText = ""
-            return
-        }
-
-        hintPoints = min(Self.maximumHintPoints, hintPoints + addedPoints)
-        Self.saveHintPoints(hintPoints)
-        hintGrantText = ""
-    }
-
     private func placeSelectedCard(at point: GridPoint) {
         if puzzle.hiddenOperatorPoints.contains(point) {
             placeSelectedOperatorCard(at: point)
@@ -1692,7 +2052,7 @@ struct ContentView: View {
 
     private func playWoodBlockPlaceFeedback() {
         UIImpactFeedbackGenerator(style: .light).impactOccurred(intensity: 0.65)
-        AudioServicesPlaySystemSound(1104)
+        playSystemSound(1104)
     }
 
     private func playVictoryFeedback(unlockedAchievement: Bool, grandVictory: Bool = false) {
@@ -1700,7 +2060,7 @@ struct ContentView: View {
         if grandVictory {
             playGrandVictorySound()
         } else {
-            AudioServicesPlaySystemSound(unlockedAchievement ? 1025 : 1022)
+            playSystemSound(unlockedAchievement ? 1025 : 1022)
         }
     }
 
@@ -1708,9 +2068,22 @@ struct ContentView: View {
         let sounds: [SystemSoundID] = [1025, 1022, 1025, 1027, 1025]
         for (index, sound) in sounds.enumerated() {
             DispatchQueue.main.asyncAfter(deadline: .now() + Double(index) * 0.32) {
-                AudioServicesPlaySystemSound(sound)
+                playSystemSound(sound)
             }
         }
+    }
+
+    private func playSystemSound(_ sound: SystemSoundID) {
+        guard isSoundEnabled else {
+            return
+        }
+
+        AudioServicesPlaySystemSound(sound)
+    }
+
+    private func toggleSound() {
+        isSoundEnabled.toggle()
+        Self.saveSoundEnabled(isSoundEnabled)
     }
 
     private func nextUnlockedLevelKey() -> PuzzleCacheKey? {
@@ -1809,6 +2182,18 @@ struct ContentView: View {
 
     private static func saveHintPoints(_ points: Int) {
         UserDefaults.standard.set(min(max(points, 0), maximumHintPoints), forKey: hintPointsKey)
+    }
+
+    private static func loadSoundEnabled() -> Bool {
+        guard UserDefaults.standard.object(forKey: soundEnabledKey) != nil else {
+            return true
+        }
+
+        return UserDefaults.standard.bool(forKey: soundEnabledKey)
+    }
+
+    private static func saveSoundEnabled(_ isEnabled: Bool) {
+        UserDefaults.standard.set(isEnabled, forKey: soundEnabledKey)
     }
 
     private static func normalizedSolvedCountKey(_ key: String) -> String {

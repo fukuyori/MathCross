@@ -1,0 +1,12 @@
+{
+  "images" : [
+    {
+      "filename" : "grand-clear-celebration-en.png",
+      "idiom" : "universal"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}

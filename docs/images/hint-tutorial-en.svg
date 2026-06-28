@@ -1,0 +1,117 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1200" viewBox="0 0 1200 1200">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#F7E0B8"/>
+      <stop offset="0.52" stop-color="#D39A55"/>
+      <stop offset="1" stop-color="#8B5A32"/>
+    </linearGradient>
+    <linearGradient id="panel" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFDF5"/>
+      <stop offset="1" stop-color="#F7F0DC"/>
+    </linearGradient>
+    <linearGradient id="wood" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FFF3D1"/>
+      <stop offset="1" stop-color="#E2B46D"/>
+    </linearGradient>
+    <linearGradient id="peach" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FFD9C3"/>
+      <stop offset="1" stop-color="#F2A07F"/>
+    </linearGradient>
+    <filter id="softShadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="10" stdDeviation="10" flood-color="#3A2414" flood-opacity="0.22"/>
+    </filter>
+    <filter id="tileShadow" x="-25%" y="-25%" width="150%" height="160%">
+      <feDropShadow dx="0" dy="7" stdDeviation="4" flood-color="#2A1B10" flood-opacity="0.26"/>
+    </filter>
+    <style>
+      .title { font: 800 58px -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif; fill: #1E2A37; }
+      .subtitle { font: 700 30px -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif; fill: #71502E; }
+      .label { font: 800 30px -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif; fill: #1E2A37; }
+      .small { font: 700 24px -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif; fill: #66513B; }
+      .tileText { font: 900 44px -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif; fill: #182230; text-anchor: middle; dominant-baseline: central; }
+      .hintText { font: 900 38px -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif; fill: #182230; opacity: 0.34; text-anchor: middle; dominant-baseline: central; }
+      .cardText { font: 900 48px -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif; fill: #007F67; text-anchor: middle; dominant-baseline: central; }
+      .stepNo { font: 900 24px -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif; fill: #fff; text-anchor: middle; dominant-baseline: central; }
+    </style>
+  </defs>
+
+  <rect width="1200" height="1200" fill="url(#bg)"/>
+  <path d="M-60 165 C210 94 346 190 578 118 S935 44 1275 112" fill="none" stroke="#FFF2CB" stroke-width="54" opacity="0.28"/>
+  <path d="M-45 720 C245 646 424 764 670 682 S1001 596 1260 648" fill="none" stroke="#5F371D" stroke-width="48" opacity="0.17"/>
+
+  <rect x="58" y="52" width="1084" height="1084" rx="44" fill="url(#panel)" filter="url(#softShadow)"/>
+  <rect x="80" y="74" width="1040" height="1040" rx="32" fill="none" stroke="#FFFFFF" stroke-width="3" opacity="0.65"/>
+
+  <text x="110" y="142" class="title">How Hints Work</text>
+  <text x="112" y="190" class="subtitle">Spend one heart to softly reveal one empty number.</text>
+
+  <g transform="translate(100 245)">
+    <circle cx="26" cy="26" r="26" fill="#D32835"/>
+    <text x="26" y="27" class="stepNo">1</text>
+    <text x="70" y="21" class="label">Hearts are hint points</text>
+    <text x="70" y="58" class="small">You can hold up to 10.</text>
+    <rect x="70" y="86" width="340" height="126" rx="18" fill="#FFFFFF" opacity="0.88"/>
+    <g transform="translate(96 108)">
+      <g fill="#E7192B">
+        <path d="M17 32 C7 23 0 17 0 9 C0 3 4 0 10 0 C14 0 17 3 19 6 C21 3 24 0 28 0 C34 0 38 3 38 9 C38 17 31 23 21 32 L19 34 Z"/>
+        <path d="M65 32 C55 23 48 17 48 9 C48 3 52 0 58 0 C62 0 65 3 67 6 C69 3 72 0 76 0 C82 0 86 3 86 9 C86 17 79 23 69 32 L67 34 Z"/>
+        <path d="M113 32 C103 23 96 17 96 9 C96 3 100 0 106 0 C110 0 113 3 115 6 C117 3 120 0 124 0 C130 0 134 3 134 9 C134 17 127 23 117 32 L115 34 Z"/>
+        <path d="M161 32 C151 23 144 17 144 9 C144 3 148 0 154 0 C158 0 161 3 163 6 C165 3 168 0 172 0 C178 0 182 3 182 9 C182 17 175 23 165 32 L163 34 Z"/>
+        <path d="M209 32 C199 23 192 17 192 9 C192 3 196 0 202 0 C206 0 209 3 211 6 C213 3 216 0 220 0 C226 0 230 3 230 9 C230 17 223 23 213 32 L211 34 Z"/>
+        <path d="M17 80 C7 71 0 65 0 57 C0 51 4 48 10 48 C14 48 17 51 19 54 C21 51 24 48 28 48 C34 48 38 51 38 57 C38 65 31 71 21 80 L19 82 Z"/>
+        <path d="M65 80 C55 71 48 65 48 57 C48 51 52 48 58 48 C62 48 65 51 67 54 C69 51 72 48 76 48 C82 48 86 51 86 57 C86 65 79 71 69 80 L67 82 Z"/>
+      </g>
+      <g fill="none" stroke="#C9B8A2" stroke-width="3" opacity="0.75">
+        <path d="M113 80 C103 71 96 65 96 57 C96 51 100 48 106 48 C110 48 113 51 115 54 C117 51 120 48 124 48 C130 48 134 51 134 57 C134 65 127 71 117 80 L115 82 Z"/>
+        <path d="M161 80 C151 71 144 65 144 57 C144 51 148 48 154 48 C158 48 161 51 163 54 C165 51 168 48 172 48 C178 48 182 51 182 57 C182 65 175 71 165 80 L163 82 Z"/>
+        <path d="M209 80 C199 71 192 65 192 57 C192 51 196 48 202 48 C206 48 209 51 211 54 C213 51 216 48 220 48 C226 48 230 51 230 57 C230 65 223 71 213 80 L211 82 Z"/>
+      </g>
+    </g>
+  </g>
+
+  <g transform="translate(590 245)">
+    <circle cx="26" cy="26" r="26" fill="#D32835"/>
+    <text x="26" y="27" class="stepNo">2</text>
+    <text x="70" y="21" class="label">Tap and confirm</text>
+    <text x="70" y="58" class="small">A confirmation appears.</text>
+    <rect x="72" y="86" width="300" height="126" rx="18" fill="#FFFFFF" opacity="0.92"/>
+    <rect x="98" y="116" width="246" height="66" rx="18" fill="#FFF6E2" stroke="#D8B577" stroke-width="3"/>
+    <text x="221" y="143" class="small" text-anchor="middle">Use 1 hint?</text>
+    <rect x="248" y="154" width="70" height="32" rx="16" fill="#D32835"/>
+    <text x="283" y="172" font-family="-apple-system, BlinkMacSystemFont, Helvetica Neue, sans-serif" font-size="17" font-weight="800" fill="#fff" text-anchor="middle">OK</text>
+  </g>
+
+  <g transform="translate(100 780)">
+    <circle cx="26" cy="26" r="26" fill="#D32835"/>
+    <text x="26" y="27" class="stepNo">3</text>
+    <text x="70" y="21" class="label">A number appears softly</text>
+    <text x="70" y="58" class="small">The hint target is chosen automatically.</text>
+    <g transform="translate(78 92)">
+      <rect x="0" y="0" width="74" height="74" rx="8" fill="#FFF7E4" stroke="#1C2631" stroke-width="4" filter="url(#tileShadow)"/>
+      <text x="37" y="39" class="tileText">8</text>
+      <rect x="78" y="0" width="74" height="74" rx="8" fill="url(#wood)" stroke="#1C2631" stroke-width="4"/>
+      <text x="115" y="39" class="tileText">+</text>
+      <rect x="156" y="0" width="74" height="74" rx="8" fill="#FFF7E4" stroke="#1C2631" stroke-width="4"/>
+      <text x="193" y="39" class="hintText">7</text>
+      <rect x="234" y="0" width="74" height="74" rx="8" fill="url(#wood)" stroke="#1C2631" stroke-width="4"/>
+      <text x="271" y="39" class="tileText">=</text>
+      <rect x="312" y="0" width="74" height="74" rx="8" fill="#FFF7E4" stroke="#1C2631" stroke-width="4"/>
+      <text x="349" y="39" class="tileText">15</text>
+    </g>
+  </g>
+
+  <g transform="translate(590 780)">
+    <circle cx="26" cy="26" r="26" fill="#D32835"/>
+    <text x="26" y="27" class="stepNo">4</text>
+    <text x="70" y="21" class="label">Place the card</text>
+    <text x="70" y="58" class="small">Use the matching number card.</text>
+    <g transform="translate(86 90)">
+      <rect x="0" y="0" width="82" height="82" rx="14" fill="url(#peach)" stroke="#BE765E" stroke-width="3" filter="url(#tileShadow)" transform="rotate(-7 41 41)"/>
+      <text x="41" y="43" class="cardText" transform="rotate(-7 41 41)">7</text>
+      <path d="M98 42 C132 42 154 42 192 42" stroke="#D32835" stroke-width="8" stroke-linecap="round" fill="none"/>
+      <path d="M176 22 L204 42 L176 62" stroke="#D32835" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+      <rect x="226" y="1" width="82" height="82" rx="8" fill="#FFF7E4" stroke="#1C2631" stroke-width="4"/>
+      <text x="267" y="44" class="hintText">7</text>
+    </g>
+  </g>
+</svg>

@@ -1,0 +1,70 @@
+"app.title" = "はめこみクロスマス";
+"grand.clear.message" = "全レベルをクリアしました！";
+
+"difficulty.beginner" = "初級";
+"difficulty.intermediate" = "中級";
+"difficulty.advanced" = "上級";
+"difficulty.expert" = "狂級";
+
+"achievement.reset.title" = "実績を調整しますか";
+"achievement.reset.field" = "残すレベル";
+"achievement.reset.message" = "0または1なら全実績を消去します。60ならレベル60までをクリア済みにして、レベル60から始めます。";
+
+"hint.use.title" = "ヒントを使いますか";
+"hint.use.message" = "ヒントポイントを1つ消費して、未入力の数字を1つ表示します。";
+
+"replace.confirm.title" = "別のパターンに入れ替えますか";
+"replace.confirm.message" = "現在の入力内容は消えます。";
+
+"button.execute" = "実行";
+"button.cancel" = "キャンセル";
+"button.use" = "使う";
+"button.replace" = "入れ替える";
+"button.redeal" = "再配置";
+"button.close" = "閉じる";
+"button.sound.on" = "サウンドをオンにする";
+"button.sound.off" = "サウンドをオフにする";
+"button.to.level1" = "レベル1へ";
+"button.next.level" = "次のレベルへ";
+"button.next.game" = "次のゲームへ";
+
+"howto.title" = "遊び方";
+"howto.rule.title" = "数字を当てはめる";
+"howto.rule.body" = "空いているマスに数字や記号を入れて、タテ・ヨコの計算が正しくなるようにします。すべての式が正しくなるとクリアです。";
+"howto.clear.title" = "レベルクリア条件";
+"howto.clear.body" = "初級は1回、中級は2回、上級・狂級は3回正解すると、そのレベルをクリアできます。";
+"howto.level.move.title" = "レベル移動";
+"howto.level.move.body" = "任意のレベルに移動したいときは、左上のゲーム名をダブルタップして、移動先のレベルを入力します。";
+"howto.replace.title" = "問題を変更する";
+"howto.replace.body" = "右上の回転矢印ボタンを押すと、同じレベルの別の問題に入れ替えられます。現在の入力内容は消えます。";
+"howto.hint.title" = "ヒントの使い方";
+"howto.hint.body" = "ハートを1つ使うと、空いている数字マスの答えが1つ表示されます。ハート表示をタップすると確認画面が出ます。";
+
+"header.level.detail" = "レベル %lld / %lldx%lld / %lld個 / %@";
+"header.clear.count" = "正解数 %lld";
+"header.block.difficulty" = "%lld個 %@";
+"header.clear.progress" = "正解数 %lld / 必要数 %lld";
+"unlock.title" = "アンロック";
+"clear.title" = "クリア";
+"clear.level.detail" = "レベル %lld / %lld個 / %@";
+
+"level.unavailable" = "このレベルは選択できません";
+"level.locked" = "レベル %lld はまだ解放されていません";
+"level.unlock.requirement" = "レベル %lld はレベル %lld をあと%lld回クリアで解放";
+"level.remaining" = "レベルアップまで残り%lld回だよ";
+"level.name" = "レベル %lld";
+"level.name.more" = "レベル %lld ほか%lld件";
+"level.no.pattern" = "このレベルのパターンデータがありません";
+
+"encouragement.1" = "お疲れ様でございます";
+"encouragement.2" = "大変お疲れ様でした";
+"encouragement.3" = "ご尽力いただき感謝申し上げます";
+"encouragement.4" = "お見事なお働きでございました";
+"encouragement.5" = "並々ならぬご努力に敬服いたします";
+"encouragement.6" = "素晴らしいお仕事ぶりに感じ入っております";
+"encouragement.7" = "大変な中、よくぞやり遂げてくださいました";
+"encouragement.8" = "たゆまぬご努力に頭が下がる思いです";
+"encouragement.9" = "ご活躍、心よりお慶び申し上げます";
+"encouragement.10" = "ご精励の賜物と存じます";
+"encouragement.11" = "皆様のご支援の賜物と、心より御礼申し上げます";
+"encouragement.12" = "ひとえに皆様のおかげと存じます";
