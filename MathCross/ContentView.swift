@@ -35,7 +35,7 @@ struct ContentView: View {
     @State private var showHowToPlaySheet = false
     @State private var snappingPlacedPoints: Set<GridPoint> = []
 
-    private let appVersion = "0.8.2"
+    private let appVersion = "0.8.3"
     private let cellSpacing: CGFloat = 2
     private let ink = Color(red: 0.12, green: 0.15, blue: 0.18)
     private let accent = Color(red: 0.04, green: 0.45, blue: 0.39)
@@ -2152,10 +2152,6 @@ struct ContentView: View {
     @discardableResult
     private func recordSolvedPuzzle() -> UnlockResult? {
         let beforeUnlockedKeys = unlockedKeys()
-        let clearCountBefore = clearCount(for: currentPuzzleKey)
-        let clearRequirement = clearRequirement(for: currentPuzzleKey)
-        let willClearLevel = clearCountBefore < clearRequirement &&
-            clearCountBefore + 1 >= clearRequirement
         let completionBucket = completedPuzzleBucket(for: currentPuzzleKey)
         if let currentPreparedPuzzleID {
             completedPuzzleIDs[completionBucket, default: []].insert(currentPreparedPuzzleID)
@@ -2163,10 +2159,8 @@ struct ContentView: View {
         resetCompletedPuzzleIDsIfNeeded(for: currentPuzzleKey, completionBucket: completionBucket)
         Self.saveCompletedPuzzleIDs(completedPuzzleIDs)
         solvedCounts[solvedCountKey(level: currentLevelNumber), default: 0] += 1
-        if willClearLevel {
-            hintPoints = min(Self.maximumHintPoints, hintPoints + 1)
-            Self.saveHintPoints(hintPoints)
-        }
+        hintPoints = min(Self.maximumHintPoints, hintPoints + 1)
+        Self.saveHintPoints(hintPoints)
         unlockMessage = nil
         Self.saveSolvedCounts(solvedCounts)
         let afterUnlockedKeys = unlockedKeys()
