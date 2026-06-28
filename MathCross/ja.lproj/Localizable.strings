@@ -7,8 +7,8 @@
 "difficulty.expert" = "狂級";
 
 "achievement.reset.title" = "実績を調整しますか";
-"achievement.reset.field" = "残すレベル";
-"achievement.reset.message" = "0または1なら全実績を消去します。60ならレベル60までをクリア済みにして、レベル60から始めます。";
+"achievement.reset.field" = "移動先レベル";
+"achievement.reset.message" = "入力したレベルへ移動します。移動先の1つ前までをクリア済みにし、移動先レベルの正解数は0から始めます。";
 
 "hint.use.title" = "ヒントを使いますか";
 "hint.use.message" = "ヒントポイントを1つ消費して、未入力の数字を1つ表示します。";

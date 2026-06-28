@@ -7,8 +7,8 @@
 "difficulty.expert" = "Expert";
 
 "achievement.reset.title" = "Adjust achievements?";
-"achievement.reset.field" = "Level to keep";
-"achievement.reset.message" = "Enter 0 or 1 to clear all achievements. Enter 60 to mark levels through 60 as cleared and start from level 60.";
+"achievement.reset.field" = "Destination Level";
+"achievement.reset.message" = "Move to the entered level. Levels before it will be marked cleared, and the destination level starts with 0 clears.";
 
 "hint.use.title" = "Use a hint?";
 "hint.use.message" = "Spend 1 hint point to softly reveal one empty number cell.";

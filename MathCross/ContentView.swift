@@ -33,7 +33,7 @@ struct ContentView: View {
     @State private var showHowToPlaySheet = false
     @State private var snappingPlacedPoints: Set<GridPoint> = []
 
-    private let appVersion = "0.8.0"
+    private let appVersion = "0.8.1"
     private let cellSpacing: CGFloat = 2
     private let ink = Color(red: 0.12, green: 0.15, blue: 0.18)
     private let accent = Color(red: 0.04, green: 0.45, blue: 0.39)
@@ -240,17 +240,22 @@ struct ContentView: View {
             GeometryReader { geometry in
                 let layoutScale = min(
                     max(min(geometry.size.width / 820, geometry.size.height / 1120), 0.82),
-                    1.08
+                    1.12
+                )
+                let sizeScale = min(
+                    max(min(geometry.size.width / 820, geometry.size.height / 900), 0.90),
+                    1.28
                 )
                 let horizontalPadding = max(8, min(18, geometry.size.width * 0.014))
                 let verticalPadding = max(8, min(16, geometry.size.height * 0.010))
-                let contentSpacing = max(8, min(14, 10 * layoutScale))
+                let contentSpacing = max(8, min(18, 10 * layoutScale))
                 let totalCardCount = puzzle.answerCards.count + puzzle.operatorCards.count
-                let cardSpacing = max(6, min(12, totalCardCount >= 28 ? 8 * layoutScale : 10 * layoutScale))
-                let trayPadding = max(6, min(12, totalCardCount >= 28 ? 8 * layoutScale : 10 * layoutScale))
+                let cardSpacing = max(6, min(14, totalCardCount >= 28 ? 8 * layoutScale : 10 * layoutScale))
+                let trayPadding = max(6, min(14, totalCardCount >= 28 ? 8 * layoutScale : 10 * layoutScale))
                 let maximumContentWidth = geometry.size.width - horizontalPadding * 2
-                let contentWidth = min(maximumContentWidth, 790 * layoutScale)
+                let contentWidth = min(maximumContentWidth, 860 * sizeScale)
                 let headerReservedHeight = max(92, 98 * layoutScale)
+                let cardScale = min(sizeScale, 1.10)
                 let targetCardRows: Int = {
                     if totalCardCount >= 25 {
                         return 3
@@ -261,7 +266,7 @@ struct ContentView: View {
                     return 1
                 }()
                 let targetCardsPerRow = max(Int(ceil(Double(totalCardCount) / Double(targetCardRows))), 1)
-                let cardSizeRange: ClosedRange<CGFloat> = totalCardCount >= 25 ? 46...58 : 52...72
+                let cardSizeRange: ClosedRange<CGFloat> = totalCardCount >= 25 ? 46...(58 * cardScale) : 52...(72 * cardScale)
                 let estimatedCardSide = max(
                     cardSizeRange.lowerBound,
                     min(
@@ -284,10 +289,8 @@ struct ContentView: View {
                 let trayHeight = cardRows * cardSide + max(cardRows - 1, 0) * cardSpacing + trayPadding * 2
                 let reservedHeight = headerReservedHeight + trayHeight + contentSpacing * 2 + verticalPadding * 2
                 let availableBoardSide = geometry.size.height - reservedHeight
-                let side = max(
-                    min(360 * layoutScale, contentWidth),
-                    min(contentWidth, availableBoardSide)
-                )
+                let minimumBoardSide = min(360 * sizeScale, contentWidth)
+                let side = max(minimumBoardSide, min(contentWidth, availableBoardSide))
 
                 VStack(spacing: contentSpacing) {
                     header
@@ -1724,7 +1727,7 @@ struct ContentView: View {
         var seededSolvedCounts: [String: Int] = [:]
 
         if targetLevel > 1 {
-            for level in Self.availableLevelNumbers where level <= targetLevel {
+            for level in Self.availableLevelNumbers where level < targetLevel {
                 guard let key = puzzleKey(forLevel: level) else {
                     continue
                 }
