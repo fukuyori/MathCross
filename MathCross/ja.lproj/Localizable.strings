@@ -12,11 +12,15 @@
 
 "hint.use.title" = "ヒントを使いますか";
 "hint.use.message" = "ヒントポイントを1つ消費して、未入力の数字を1つ表示します。";
+"hint.grant.title" = "ライフを追加しますか";
+"hint.grant.field" = "追加する数";
+"hint.grant.message" = "現在 %lld 個 / 上限 %lld 個。追加する数を入力してください。";
 
 "replace.confirm.title" = "別のパターンに入れ替えますか";
 "replace.confirm.message" = "現在の入力内容は消えます。";
 
 "button.execute" = "実行";
+"button.add" = "追加";
 "button.cancel" = "キャンセル";
 "button.use" = "使う";
 "button.replace" = "入れ替える";

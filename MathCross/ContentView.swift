@@ -29,11 +29,13 @@ struct ContentView: View {
     @State private var showResetAchievementsDialog = false
     @State private var resetAchievementLevelText = ""
     @State private var showHintConfirmDialog = false
+    @State private var showHintGrantDialog = false
+    @State private var hintGrantText = "1"
     @State private var showReplacePuzzleConfirmDialog = false
     @State private var showHowToPlaySheet = false
     @State private var snappingPlacedPoints: Set<GridPoint> = []
 
-    private let appVersion = "0.8.1"
+    private let appVersion = "0.8.2"
     private let cellSpacing: CGFloat = 2
     private let ink = Color(red: 0.12, green: 0.15, blue: 0.18)
     private let accent = Color(red: 0.04, green: 0.45, blue: 0.39)
@@ -55,7 +57,7 @@ struct ContentView: View {
     private static let completedPuzzleIDsKey = "mathCross.completedPuzzleIDsByLevel"
     private static let hintPointsKey = "mathCross.hintPoints"
     private static let soundEnabledKey = "mathCross.soundEnabled"
-    private static let maximumHintPoints = 10
+    private static let maximumHintPoints = 20
     private static var grandClearMessage: String {
         L10n.text("grand.clear.message")
     }
@@ -356,6 +358,20 @@ struct ContentView: View {
             Text(L10n.text("hint.use.message"))
         }
         .alert(
+            L10n.text("hint.grant.title"),
+            isPresented: $showHintGrantDialog
+        ) {
+            TextField(L10n.text("hint.grant.field"), text: $hintGrantText)
+                .keyboardType(.numberPad)
+
+            Button(L10n.text("button.add")) {
+                grantHintPoints(Int(hintGrantText) ?? 0)
+            }
+            Button(L10n.text("button.cancel"), role: .cancel) {}
+        } message: {
+            Text(L10n.format("hint.grant.message", hintPoints, Self.maximumHintPoints))
+        }
+        .alert(
             L10n.text("replace.confirm.title"),
             isPresented: $showReplacePuzzleConfirmDialog
         ) {
@@ -548,15 +564,15 @@ struct ContentView: View {
 
     private var headerActionControls: some View {
         HStack(spacing: 12) {
-            VStack(spacing: 3) {
-                ForEach(0..<2, id: \.self) { row in
-                    HStack(spacing: 3) {
+            VStack(spacing: 1) {
+                ForEach(0..<4, id: \.self) { row in
+                    HStack(spacing: 2) {
                         ForEach(0..<5, id: \.self) { column in
                             let index = row * 5 + column
                             Image(systemName: index < hintPoints ? "heart.fill" : "heart")
-                                .font(.system(size: 12, weight: .heavy))
+                                .font(.system(size: 10, weight: .heavy))
                                 .foregroundStyle(index < hintPoints ? heartAccent : ink.opacity(0.18))
-                                .frame(width: 13, height: 13)
+                                .frame(width: 11, height: 11)
                         }
                     }
                 }
@@ -573,6 +589,9 @@ struct ContentView: View {
             .contentShape(Rectangle())
             .onTapGesture {
                 requestRandomHint()
+            }
+            .onLongPressGesture(minimumDuration: 0.55) {
+                presentHintGrantDialog()
             }
 
             HStack(spacing: 8) {
@@ -1885,6 +1904,26 @@ struct ContentView: View {
         }
 
         showHintConfirmDialog = true
+    }
+
+    private func presentHintGrantDialog() {
+        guard hintPoints < Self.maximumHintPoints else {
+            return
+        }
+
+        hintGrantText = "1"
+        showHintGrantDialog = true
+        UIImpactFeedbackGenerator(style: .light).impactOccurred(intensity: 0.55)
+    }
+
+    private func grantHintPoints(_ points: Int) {
+        guard points > 0, hintPoints < Self.maximumHintPoints else {
+            return
+        }
+
+        hintPoints = min(Self.maximumHintPoints, hintPoints + points)
+        Self.saveHintPoints(hintPoints)
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred(intensity: 0.7)
     }
 
     private var hasAvailableHintTarget: Bool {

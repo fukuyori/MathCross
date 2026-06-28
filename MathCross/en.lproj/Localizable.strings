@@ -12,11 +12,15 @@
 
 "hint.use.title" = "Use a hint?";
 "hint.use.message" = "Spend 1 hint point to softly reveal one empty number cell.";
+"hint.grant.title" = "Add lives?";
+"hint.grant.field" = "Amount to add";
+"hint.grant.message" = "Current %lld / maximum %lld. Enter how many lives to add.";
 
 "replace.confirm.title" = "Switch to another puzzle?";
 "replace.confirm.message" = "Your current entries will be cleared.";
 
 "button.execute" = "Run";
+"button.add" = "Add";
 "button.cancel" = "Cancel";
 "button.use" = "Use";
 "button.replace" = "Switch";
